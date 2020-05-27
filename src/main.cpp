@@ -6,8 +6,30 @@
 #include "color.h"
 #include "ray.h"
 
+bool hit_sphere(const Point3& center, f32 radius, const Ray& r)
+{
+    Vec3 oc = r.origin - center;
+    f32 a = dot(r.direction, r.direction);
+    f32 b = 2.0f * dot(oc, r.direction);
+    f32 c = dot(oc, oc) - radius * radius;
+    f32 discriminant = b * b - 4 * a * c;
+    return (discriminant > 0);
+}
+
 Color ray_color(const Ray& r)
 {
+    Vec3 v = {};
+    v.x = 0.0f;
+    v.y = 0.0f;
+    v.z = -1.0f;
+    if(hit_sphere(v, 0.5f, r))
+    {
+        Color color = {};
+        color.x = 1.0f;
+        color.y = 0.0f;
+        color.z = 0.0f;
+        return color;
+    }
     Vec3 unit_direction = unit_vector(r.direction);
     f32 t = 0.5f * (unit_direction.y + 1.0f);
     return (1.0f - t) * color(1.0f, 1.0f, 1.0f) + t * color(0.5f, 0.7f, 1.0f);
@@ -40,7 +62,7 @@ int main()
             fprintf(stderr, "\rScanlines remaining: %d", j);
             for(i32 i = 0; i < image_width; ++i)
             {
-                f32 u = f32(i) / (image_width -1);
+                f32 u = f32(i) / (image_width - 1);
                 f32 v = f32(j) / (image_height -1);
                 Ray r = {};
                 r.origin = origin;
