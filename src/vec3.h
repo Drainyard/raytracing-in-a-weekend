@@ -14,7 +14,7 @@ struct Vec3
         f32 e[3];
     };
 
-    Vec3 operator-()
+    Vec3 operator-() const
     {
         return {-x, -y, -z};
     }

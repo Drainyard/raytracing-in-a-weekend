@@ -1,35 +1,40 @@
 #include "types.h"
 #include "stdio.h"
+#include <stdlib.h>
 
 #include <math.h>
 #include "vec3.h"
 #include "color.h"
 #include "ray.h"
+#include "math_util.h"
+#include "hittable.h"
 
-bool hit_sphere(const Point3& center, f32 radius, const Ray& r)
+f32 hit_sphere(const Point3& center, f32 radius, const Ray& r)
 {
     Vec3 oc = r.origin - center;
-    f32 a = dot(r.direction, r.direction);
-    f32 b = 2.0f * dot(oc, r.direction);
-    f32 c = dot(oc, oc) - radius * radius;
-    f32 discriminant = b * b - 4 * a * c;
-    return (discriminant > 0);
+    f32 a = length_squared(r.direction);
+    f32 half_b = dot(oc, r.direction);
+    f32 c = length_squared(oc) - radius * radius;
+    f32 discriminant = half_b * half_b - a * c;
+    if(discriminant < 0)
+    {
+        return -1.0f;
+    }
+    return (f32)(-half_b - sqrt(discriminant) / a);
 }
 
-Color ray_color(const Ray& r)
+Color ray_color(const Ray& r, const Hittable& world)
 {
+    Hit_Record record = {};
+    if(hit(world, r, infinity, record))
+    {
+        return 0.5f * record.normal + color(1.0f, 1.0f, 1.0f);
+    }
     Vec3 v = {};
     v.x = 0.0f;
     v.y = 0.0f;
     v.z = -1.0f;
-    if(hit_sphere(v, 0.5f, r))
-    {
-        Color color = {};
-        color.x = 1.0f;
-        color.y = 0.0f;
-        color.z = 0.0f;
-        return color;
-    }
+    
     Vec3 unit_direction = unit_vector(r.direction);
     f32 t = 0.5f * (unit_direction.y + 1.0f);
     return (1.0f - t) * color(1.0f, 1.0f, 1.0f) + t * color(0.5f, 0.7f, 1.0f);
@@ -57,6 +62,18 @@ int main()
         
         fprintf(image_file, "P3\n %d %d \n255\n", image_width, image_height);
 
+        Hittable_List list = {};
+        Hittable h1 = {};
+        h1.type = HITTABLE_SPHERE;
+        h1.sphere.center = {0.0f, 0.0f, -1.0f};
+        h1.sphere.radius = 0.5f;
+        add(list, h1);
+        Hittable h2 = {};
+        h2.type = HITTABLE_SPHERE;
+        h2.sphere.center = {0.0f, -100.5f, -1.0f};
+        h2.sphere.radius = 100.0f;
+        add(list, h2);
+
         for(i32 j = image_height - 1; j >= 0; --j)
         {
             fprintf(stderr, "\rScanlines remaining: %d", j);
@@ -67,7 +84,7 @@ int main()
                 Ray r = {};
                 r.origin = origin;
                 r.direction = lower_left_corner + u * horizontal + v * vertical - origin;
-                Color pixel_color = ray_color(r);
+                Color pixel_color = ray_color(r, list);
                 write_color(image_file, pixel_color);
             }
         }
