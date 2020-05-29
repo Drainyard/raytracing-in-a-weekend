@@ -9,7 +9,7 @@ struct Ray
 
 Point3 at(const Ray& ray, f32 t)
 {
-    return ray.direction * t + ray.origin;
+    return ray.origin + ray.direction * t;
 }
 
 #endif

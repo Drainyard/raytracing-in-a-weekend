@@ -16,7 +16,11 @@ struct Vec3
 
     Vec3 operator-() const
     {
-        return {-x, -y, -z};
+        Vec3 result = {};
+        result.x = -x;
+        result.y = -y;
+        result.z = -z;
+        return result;
     }
 
     f32 operator[](i32 i) const
@@ -53,22 +57,26 @@ struct Vec3
 
 Vec3 vec3(f32 x, f32 y, f32 z)
 {
-    return {x, y, z};
+    Vec3 result = {};
+    result.e[0] = x;
+    result.e[1] = y;
+    result.e[2] = z;
+    return result;
 }
 
 Vec3 color(f32 x, f32 y, f32 z)
 {
-    return {x, y, z};
+    return vec3(x, y, z);
 }
 
 f32 length_squared(Vec3 v)
 {
-    return v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+    return v.e[0] * v.e[0] + v.e[1] * v.e[1] + v.e[2] * v.e[2];
 }
 
 f32 length(Vec3 v)
 {
-    return (f32)sqrt(length_squared(v));
+    return fsqrt(length_squared(v));
 }
 
 inline Vec3 operator+(const Vec3 &u, const Vec3 &v)
