@@ -8,9 +8,9 @@ void write_color(FILE* file, Color pixel_color, i32 samples_per_pixel)
     f32 b = pixel_color.z;
 
     f32 scale = 1.0f / samples_per_pixel;
-    r *= scale;
-    g *= scale;
-    b *= scale;
+    r = fsqrt(scale * r);
+    g = fsqrt(scale * g);
+    b = fsqrt(scale * b);
     
     fprintf(file, "%d %d %d\n",
             i32(256 * clamp(r, 0.0f, 0.999f)),

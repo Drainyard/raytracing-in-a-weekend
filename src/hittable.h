@@ -7,6 +7,8 @@ struct Hit_Record
     Vec3 normal;
     f32 t;
     b32 front_face;
+
+    struct Material* material;
 };
 
 enum Hittable_Type
@@ -17,7 +19,8 @@ enum Hittable_Type
 struct Hittable
 {
     Hittable_Type type;
-
+    struct Material* material;
+    
     union
     {
         struct
@@ -98,6 +101,7 @@ b32 hit(const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record
                 record.p = at(r, record.t);
                 Vec3 outward_normal = (record.p - center) / radius;
                 set_face_normal(record, r, outward_normal);
+                record.material = hittable.material;
                 return true;
             }
             temp = (-half_b + root) / a;
@@ -107,6 +111,7 @@ b32 hit(const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record
                 record.p = at(r, record.t);
                 Vec3 outward_normal = (record.p - center) / radius;
                 set_face_normal(record, r, outward_normal);
+                record.material = hittable.material;
                 return true;
             }
         }

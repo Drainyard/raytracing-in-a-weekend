@@ -18,6 +18,16 @@ inline f32 fsqrt(f32 value)
     return (f32)sqrt(value);
 }
 
+inline f32 fcos(f32 value)
+{
+    return (f32)cos(value);
+}
+
+inline f32 fsin(f32 value)
+{
+    return (f32)sin(value);
+}
+
 inline f32 random_float()
 {
     return rand() / (RAND_MAX + 1.0f);

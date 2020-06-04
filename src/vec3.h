@@ -133,6 +133,60 @@ inline void print(const Vec3& v)
     printf("%f %f %f", v.x, v.y, v.z);
 }
 
+inline Vec3 random_vec3()
+{
+    Vec3 result = {};
+    result.x = random_float();
+    result.y = random_float();
+    result.z = random_float();
+    return result;
+}
+
+inline Vec3 random_vec3(f32 min, f32 max)
+{
+    Vec3 result = {};
+    result.x = random_float(min, max);
+    result.y = random_float(min, max);
+    result.z = random_float(min, max);
+    return result;
+}
+
+inline Vec3 random_in_unit_sphere()
+{
+    while(true)
+    {
+        Vec3 p = random_vec3(-1.0f, 1.0f);
+        if(length_squared(p) >= 1.0f) continue;
+        return p;
+    }
+}
+
+inline Vec3 random_unit_vector()
+{
+    f32 a = random_float(0, 2.0f*pi);
+    f32 z = random_float(-1.0f, 1.0f);
+    f32 r = fsqrt(1 - z * z);
+    Vec3 result = {};
+    result.x = r * fcos(a);
+    result.y = r * fsin(a);
+    result.z = z;
+    return result;
+}
+
+inline Vec3 random_in_hemisphere(const Vec3& normal)
+{
+    Vec3 result = random_in_unit_sphere();
+    if(dot(result, normal) > 0.0f)
+    {
+        return result;
+    }
+    return -result;
+}
+
+inline Vec3 reflect(const Vec3& v, const Vec3& n)
+{
+    return v - 2 * dot(v, n) * n;
+}
 
 
 using Point3 = Vec3;
