@@ -64,6 +64,11 @@ Vec3 vec3(f32 x, f32 y, f32 z)
     return result;
 }
 
+Vec3 point3(f32 x, f32 y, f32 z)
+{
+    return vec3(x, y, z);
+}
+
 Vec3 color(f32 x, f32 y, f32 z)
 {
     return vec3(x, y, z);
@@ -183,9 +188,27 @@ inline Vec3 random_in_hemisphere(const Vec3& normal)
     return -result;
 }
 
+inline Vec3 random_in_unit_disk()
+{
+    while(true)
+    {
+        Vec3 p = vec3(random_float(-1.0f, 1.0f), random_float(-1.0f, 1.0f), 0.0f);
+        if(length_squared(p) >= 1.0f) continue;
+        return p;
+    }
+}
+
 inline Vec3 reflect(const Vec3& v, const Vec3& n)
 {
     return v - 2 * dot(v, n) * n;
+}
+
+inline Vec3 refract(const Vec3& uv, const Vec3& n, f32 etai_over_etat)
+{
+    f32 cos_theta = dot(-uv, n);
+    Vec3 r_out_parallel = etai_over_etat * (uv + cos_theta * n);
+    Vec3 r_out_perp = -fsqrt(1.0f - length_squared(r_out_parallel)) * n;
+    return r_out_parallel + r_out_perp;
 }
 
 

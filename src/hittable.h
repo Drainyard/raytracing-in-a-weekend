@@ -71,6 +71,16 @@ void clear(Hittable_List* list)
     }
 }
 
+Hittable sphere(Point3 center, f32 radius, Material* material)
+{
+    Hittable hittable = {};
+    hittable.type = HITTABLE_SPHERE;
+    hittable.sphere.center = center;
+    hittable.sphere.radius = radius;
+    hittable.material = material;
+    return hittable;
+}
+
 inline void set_face_normal(Hit_Record& record, const Ray& r, const Vec3& outward_normal)
 {
     record.front_face = dot(r.direction, outward_normal) < 0;
