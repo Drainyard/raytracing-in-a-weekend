@@ -1,14 +1,13 @@
 
-bool scatter(Material* material, const Ray& r, const Hit_Record& record, Color& attenuation, Ray& scattered)
+bool scatter(List<Texture>* texture_list, Material* material, const Ray& r, const Hit_Record& record, Color& attenuation, Ray& scattered)
 {
     switch(material->type)
     {
     case Material_Type::MATERIAL_LAMBERTIAN:
     {
         Vec3 scatter_direction = record.normal + random_unit_vector();
-        scattered.origin = record.p;
-        scattered.direction = scatter_direction;
-        attenuation = material->lambertian.albedo;
+        scattered = ray(record.p, scatter_direction, r.time);
+        attenuation = value(texture_list, material->lambertian.albedo_handle, record.u, record.v, record.p);
         return true;
     }
     break;

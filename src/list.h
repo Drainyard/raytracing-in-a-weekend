@@ -28,11 +28,11 @@ void maybe_grow(List<T>* list)
 }
 
 template<typename T>
-T& add(List<T>* list, T value)
+size_t add(List<T>* list, T value)
 {
     maybe_grow(list);
     list->data[list->count++] = value;
-    return list->data[list->count - 1];
+    return list->count - 1;
 }
 
 template<typename T>
@@ -45,5 +45,12 @@ void clear(List<T>* list)
         free(list->data);
     }
 }
+
+template<typename T>
+b32 empty(List<T>* list)
+{
+    return list->count == 0;
+}
+
 
 #endif

@@ -9,9 +9,11 @@ struct Camera
     Vec3 vertical;
     f32 lens_radius;
     Vec3 u, v, w;
+    f32 time0;
+    f32 time1;
 };
 
-Camera create_camera(Point3 look_from, Point3 look_at, Vec3 vup, f32 vfov, f32 aspect_ratio, f32 aperture, f32 focus_dist)
+Camera create_camera(Point3 look_from, Point3 look_at, Vec3 vup, f32 vfov, f32 aspect_ratio, f32 aperture, f32 focus_dist, f32 t0 = 0.0f, f32 t1 = 0.0f)
 {
     Camera camera = {};
 
@@ -30,6 +32,8 @@ Camera create_camera(Point3 look_from, Point3 look_at, Vec3 vup, f32 vfov, f32 a
     camera.vertical = focus_dist * viewport_height * camera.v;
     camera.lower_left_corner = camera.origin - camera.horizontal/2 - camera.vertical/2 - focus_dist * camera.w;
     camera.lens_radius = aperture * 0.5f;
+    camera.time0 = t0;
+    camera.time1 = t1;
     return camera;
 }
 
@@ -37,11 +41,9 @@ Ray get_ray(Camera* camera, f32 s, f32 t)
 {
     Vec3 rd = camera->lens_radius * random_in_unit_disk();
     Vec3 offset = camera->u * rd.x + camera->v * rd.y;
-    
-    Ray ray = {};
-    ray.origin = camera->origin + offset;
-    ray.direction = camera->lower_left_corner + s * camera->horizontal + t * camera->vertical - camera->origin - offset;
-    return ray;
+    return ray(camera->origin + offset,
+               camera->lower_left_corner + s * camera->horizontal + t * camera->vertical - camera->origin - offset,
+               random_float(camera->time0, camera->time1));
 }
 
 #endif

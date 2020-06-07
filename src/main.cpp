@@ -1,19 +1,23 @@
 #include "types.h"
 #include "stdio.h"
 #include <stdlib.h>
+#include <assert.h>
+
+#include "list.h"
 
 #include <math.h>
 #include "math_util.h"
 #include "vec3.h"
 #include "color.h"
 #include "ray.h"
+#include "texture.h"
 #include "material.h"
-#include "list.h"
+#include "aabb.h"
 #include "hittable.h"
 #include "camera.h"
 #include "material.cpp"
 
-Color ray_color(const Ray& r, const Hittable_List* world, i32 depth)
+Color ray_color(List<Texture>* texture_list, List<Material>* material_list, const Ray& r, const List<Hittable>* world, i32 depth)
 {
     Hit_Record record = {};
     if(depth <= 0)
@@ -25,9 +29,9 @@ Color ray_color(const Ray& r, const Hittable_List* world, i32 depth)
     {
         Ray scattered = {};
         Color attenuation = {};
-        if(scatter(record.material, r, record, attenuation, scattered))
+        if(scatter(texture_list, &material_list->data[record.material_handle], r, record, attenuation, scattered))
         {
-            return attenuation * ray_color(scattered, world, depth - 1);
+            return attenuation * ray_color(texture_list, material_list, scattered, world, depth - 1);
         }
         return color(0.0f, 0.0f, 0.0f);
     }
@@ -36,13 +40,16 @@ Color ray_color(const Ray& r, const Hittable_List* world, i32 depth)
     return (1.0f - t) * color(1.0f, 1.0f, 1.0f) + t * color(0.5f, 0.7f, 1.0f);
 }
 
-Hittable_List random_scene(List<Material>& material_list)
+List<Hittable> random_scene(List<Material>& material_list, List<Texture>& texture_list)
 {
-    Hittable_List list = {};
+    List<Hittable> list = {};
 
-    Material ground_material = lambertian(color(0.5f, 0.5f, 0.5f));
-    Material& ground_mat = add(&material_list, ground_material);
-    Hittable ground = sphere(point3(0, -1000.0f, 0.0f), 1000.0f, &ground_mat);
+    size_t t0 = add(&texture_list, solid_color(color(0.2f, 0.3f, 0.1f)));
+    size_t t1 = add(&texture_list, solid_color(color(0.9f, 0.9f, 0.9f)));
+    size_t checker = add(&texture_list, checkered(t0, t1));
+    
+    Material ground_material = lambertian(checker);
+    Hittable ground = sphere(point3(0, -1000.0f, 0.0f), 1000.0f, add(&material_list, ground_material));
     add(&list, ground);
 
     for(i32 a = -11; a < 11; a++)
@@ -57,9 +64,11 @@ Hittable_List random_scene(List<Material>& material_list)
                 if(choose_mat < 0.8f)
                 {
                     Color albedo = random_vec3() * random_vec3();
-                    Material mat = lambertian(albedo);
-                    Material& m = add(&material_list, mat);
-                    Hittable s = sphere(center, 0.2f, &m);
+                    Material mat = lambertian(add(&texture_list, solid_color(albedo)));
+
+                    Point3 center2 = center + vec3(0.0f, random_float(0.0f, 0.5f), 0.0f);
+                    
+                    Hittable s = moving_sphere(center, center2, 0.0f, 1.0f, 0.2f, add(&material_list, mat));
                     add(&list, s);
                 }
                 else if(choose_mat < 0.95f)
@@ -67,15 +76,13 @@ Hittable_List random_scene(List<Material>& material_list)
                     Color albedo = random_vec3(0.5f, 1.0f);
                     f32 fuzz = random_float(0.0f, 0.5f);
                     Material mat = metal(albedo, fuzz);
-                    Material& m = add(&material_list, mat);
-                    Hittable s = sphere(center, 0.2f, &m);
+                    Hittable s = sphere(center, 0.2f, add(&material_list, mat));
                     add(&list, s);
                 }
                 else
                 {
                     Material mat = dialectric(1.5f);
-                    Material& m = add(&material_list, mat);
-                    Hittable s = sphere(center, 0.2f, &m);
+                    Hittable s = sphere(center, 0.2f, add(&material_list, mat));
                     add(&list, s);
                 }
             }
@@ -87,10 +94,10 @@ Hittable_List random_scene(List<Material>& material_list)
 int main()
 {
     const f32 aspect_ratio = 16.0f / 9.0f;
-    const int image_width = 1200.0f;
+    const int image_width = 1200;
     const int image_height = i32(image_width / aspect_ratio);
-    const int samples_per_pixel = 100;
-    const int max_depth = 50;
+    const int samples_per_pixel = 1;
+    const int max_depth = 5;
 
     FILE* image_file = fopen("output.ppm", "w");
 
@@ -102,23 +109,22 @@ int main()
         f32 dist_to_focus = 10.0f;
         f32 aperture = 0.1f;
         Camera camera = create_camera(look_from, look_at, v_up,
-                                      20.0f, aspect_ratio, aperture, dist_to_focus);
+                                      20.0f, aspect_ratio, aperture, dist_to_focus, 0.0f, 1.0f);
         
         fprintf(image_file, "P3\n%d %d \n255\n", image_width, image_height);
 
         List<Material> material_list = {};
-        Hittable_List list = random_scene(material_list);
+        List<Texture> texture_list = {};
+        List<Hittable> list = random_scene(material_list, texture_list);
 
-        Material m1 = dialectric(1.5f);
-        Hittable h1 = sphere({0.0f, 1.0f, 0.0f}, 1.0f, &m1);
+        Hittable h1 = sphere({0.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, dialectric(1.5f)));
         add(&list, h1);
 
-        Material m2 = lambertian(color(0.4f, 0.2f, 0.1f));
-        Hittable h2 = sphere({-4.0f, 1.0f, 0.0f}, 1.0f, &m2);
+        i32 t2 = add(&texture_list, solid_color(color(0.4f, 0.2f, 0.1f)));
+        Hittable h2 = sphere({-4.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, lambertian(t2)));
         add(&list, h2);
 
-        Material m3 = metal(color(0.7f, 0.6, 0.5f), 0.0f);
-        Hittable h3 = sphere({4.0f, 1.0f, 0.0f}, 1.0f, &m3);
+        Hittable h3 = sphere({4.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, metal(color(0.7f, 0.6, 0.5f), 0.0f)));
         add(&list, h3);
 
         for(i32 j = image_height - 1; j >= 0; --j)
@@ -132,7 +138,7 @@ int main()
                     f32 u = (i + random_float()) / (image_width - 1);
                     f32 v = (j + random_float()) / (image_height - 1);
                     Ray r = get_ray(&camera, u, v);
-                    pixel_color += ray_color(r, &list, max_depth);
+                    pixel_color += ray_color(&texture_list, &material_list, r, &list, max_depth);
                 }
                 write_color(image_file, pixel_color, samples_per_pixel);
             }

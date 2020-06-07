@@ -16,7 +16,7 @@ struct Material
     {
         struct
         {
-            Color albedo;
+            i32 albedo_handle;
         } lambertian;
         struct
         {
@@ -37,11 +37,11 @@ f32 schlick(f32 cosine, f32 ref_idx)
     return r0 + (1.0f - r0) * fpow((1.0f - cosine), 5);
 }
 
-Material lambertian(Color albedo)
+Material lambertian(size_t albedo)
 {
     Material material = {};
     material.type = MATERIAL_LAMBERTIAN;
-    material.lambertian.albedo = albedo;
+    material.lambertian.albedo_handle = albedo;
     return material;
 }
 

@@ -41,6 +41,16 @@ inline f32 fpow(f32 value, i32 exponent)
     return (f32)pow(value, exponent);
 }
 
+inline i32 random_int()
+{
+    return rand() / (RAND_MAX + 1);
+}
+
+inline i32 random_int(i32 min, i32 max)
+{
+    return min + (max - min) * random_int();
+}
+
 inline f32 random_float()
 {
     return rand() / (RAND_MAX + 1.0f);
