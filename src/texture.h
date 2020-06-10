@@ -4,7 +4,8 @@
 enum Texture_Type
 {
     TEXTURE_SOLID_COLOR,
-    TEXTURE_CHECKER
+    TEXTURE_CHECKER,
+    TEXTURE_NOISE
 };
 
 struct Texture
@@ -18,9 +19,13 @@ struct Texture
         } solid_color;
         struct
         {
-            i32 odd_handle;
-            i32 even_handle;
+            size_t odd_handle;
+            size_t even_handle;
         } checker;
+        struct
+        {
+            Perlin noise;
+        } noise;
     };
 };
 
@@ -37,7 +42,7 @@ Texture solid_color(f32 r, f32 g, f32 b)
     return solid_color(color(r, g, b));
 }
 
-Texture checkered(i32 t0, i32 t1)
+Texture checkered(size_t t0, size_t t1)
 {
     Texture t = {};
     t.type = TEXTURE_CHECKER;
@@ -46,7 +51,15 @@ Texture checkered(i32 t0, i32 t1)
     return t;
 }
 
-Color value(List<Texture>* list, i32 handle, f32 u, f32 v, const Vec3& p)
+Texture noise()
+{
+    Texture t = {};
+    t.type = TEXTURE_NOISE;
+    t.noise.noise = perlin();
+    return t;
+}
+
+Color value(List<Texture>* list, size_t handle, f32 u, f32 v, const Vec3& p)
 {
     Texture* texture = &list->data[handle];
     switch(texture->type)
@@ -67,6 +80,11 @@ Color value(List<Texture>* list, i32 handle, f32 u, f32 v, const Vec3& p)
         {
             return value(list, texture->checker.even_handle, u, v, p);
         }
+    }
+    break;
+    case TEXTURE_NOISE:
+    {
+        return color(1.0f, 1.0f, 1.0f) * noise(&texture->noise.noise, p);
     }
     break;
     }

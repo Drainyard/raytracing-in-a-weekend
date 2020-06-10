@@ -10,6 +10,7 @@
 #include "vec3.h"
 #include "color.h"
 #include "ray.h"
+#include "perlin.h"
 #include "texture.h"
 #include "material.h"
 #include "aabb.h"
@@ -38,6 +39,32 @@ Color ray_color(List<Texture>* texture_list, List<Material>* material_list, cons
     Vec3 unit_direction = unit_vector(r.direction);
     f32 t = 0.5f * (unit_direction.y + 1.0f);
     return (1.0f - t) * color(1.0f, 1.0f, 1.0f) + t * color(0.5f, 0.7f, 1.0f);
+}
+
+List<Hittable> two_spheres(List<Material>& material_list, List<Texture>& texture_list)
+{
+    List<Hittable> list = {};
+
+    size_t s0 = add(&texture_list, solid_color(color(0.2f, 0.3f, 0.1f)));
+    size_t s1 = add(&texture_list, solid_color(color(0.9f, 0.9f, 0.9f)));
+
+    size_t checker = add(&texture_list, checkered(s0, s1));
+
+    add(&list, sphere(point3(0.0f, -10.0f, 0.0f), 10.0f, add(&material_list, lambertian(checker))));
+    add(&list, sphere(point3(0.0f, 10.0f, 0.0f), 10.0f, add(&material_list, lambertian(checker))));
+
+    return list;
+}
+
+List<Hittable> two_perlin_spheres(List<Material>& material_list, List<Texture>& texture_list)
+{
+    List<Hittable> list = {};
+
+    size_t per_text = add(&texture_list, noise());
+    add(&list, sphere(point3(0.0f, -1000.0f, 0.0f), 1000.0f, add(&material_list, lambertian(per_text))));
+    add(&list, sphere(point3(0.0f, 2.0f, 0.0f), 2.0f, add(&material_list, lambertian(per_text))));
+
+    return list;
 }
 
 List<Hittable> random_scene(List<Material>& material_list, List<Texture>& texture_list)
@@ -96,7 +123,7 @@ int main()
     const f32 aspect_ratio = 16.0f / 9.0f;
     const int image_width = 1200;
     const int image_height = i32(image_width / aspect_ratio);
-    const int samples_per_pixel = 1;
+    const int samples_per_pixel = 10;
     const int max_depth = 5;
 
     FILE* image_file = fopen("output.ppm", "w");
@@ -107,7 +134,7 @@ int main()
         Point3 look_at = point3(0.0f, 0.0f, 0.0f);
         Vec3 v_up = vec3(0.0f, 1.0f, 0.0f);
         f32 dist_to_focus = 10.0f;
-        f32 aperture = 0.1f;
+        f32 aperture = 0.0f;
         Camera camera = create_camera(look_from, look_at, v_up,
                                       20.0f, aspect_ratio, aperture, dist_to_focus, 0.0f, 1.0f);
         
@@ -115,17 +142,18 @@ int main()
 
         List<Material> material_list = {};
         List<Texture> texture_list = {};
-        List<Hittable> list = random_scene(material_list, texture_list);
+        //List<Hittable> list = random_scene(material_list, texture_list);
+        List<Hittable> list = two_perlin_spheres(material_list, texture_list);
 
-        Hittable h1 = sphere({0.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, dialectric(1.5f)));
-        add(&list, h1);
+        // Hittable h1 = sphere({0.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, dialectric(1.5f)));
+        // add(&list, h1);
 
-        i32 t2 = add(&texture_list, solid_color(color(0.4f, 0.2f, 0.1f)));
-        Hittable h2 = sphere({-4.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, lambertian(t2)));
-        add(&list, h2);
+        // size_t t2 = add(&texture_list, solid_color(color(0.4f, 0.2f, 0.1f)));
+        // Hittable h2 = sphere({-4.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, lambertian(t2)));
+        // add(&list, h2);
 
-        Hittable h3 = sphere({4.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, metal(color(0.7f, 0.6, 0.5f), 0.0f)));
-        add(&list, h3);
+        // Hittable h3 = sphere({4.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, metal(color(0.7f, 0.6, 0.5f), 0.0f)));
+        // add(&list, h3);
 
         for(i32 j = image_height - 1; j >= 0; --j)
         {

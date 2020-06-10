@@ -10,7 +10,7 @@ struct Hit_Record
     f32 u;
     f32 v;
 
-    i32 material_handle;
+    size_t material_handle;
 };
 
 enum Hittable_Type
@@ -23,7 +23,7 @@ enum Hittable_Type
 struct Hittable
 {
     Hittable_Type type;
-    i32 material_handle;
+    size_t material_handle;
     
     union
     {
@@ -135,7 +135,7 @@ bool bounding_box(List<Hittable>* list, f32 t0, f32 t1, AABB& output_box)
 }
 
 
-Hittable sphere(Point3 center, f32 radius, i32 material)
+Hittable sphere(Point3 center, f32 radius, size_t material)
 {
     Hittable hittable = {};
     hittable.type = HITTABLE_SPHERE;
@@ -145,7 +145,7 @@ Hittable sphere(Point3 center, f32 radius, i32 material)
     return hittable;
 }
 
-Hittable moving_sphere(Point3 c0, Point3 c1, f32 t0, f32 t1, f32 radius, i32 material)
+Hittable moving_sphere(Point3 c0, Point3 c1, f32 t0, f32 t1, f32 radius, size_t material)
 {
     Hittable hittable = {};
     hittable.type = HITTABLE_MOVING_SPHERE;

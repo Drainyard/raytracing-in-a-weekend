@@ -16,7 +16,7 @@ struct Material
     {
         struct
         {
-            i32 albedo_handle;
+            size_t albedo_handle;
         } lambertian;
         struct
         {
