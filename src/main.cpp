@@ -2,6 +2,8 @@
 #include "stdio.h"
 #include <stdlib.h>
 #include <assert.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 #include "list.h"
 
@@ -60,9 +62,21 @@ List<Hittable> two_perlin_spheres(List<Material>& material_list, List<Texture>& 
 {
     List<Hittable> list = {};
 
-    size_t per_text = add(&texture_list, noise());
+    size_t per_text = add(&texture_list, noise(10.0f));
     add(&list, sphere(point3(0.0f, -1000.0f, 0.0f), 1000.0f, add(&material_list, lambertian(per_text))));
     add(&list, sphere(point3(0.0f, 2.0f, 0.0f), 2.0f, add(&material_list, lambertian(per_text))));
+
+    return list;
+}
+
+List<Hittable> earth(List<Material>& material_list, List<Texture>& texture_list)
+{
+    List<Hittable> list = {};
+
+    size_t earth_texture = add(&texture_list, image("earthmap.jpg"));
+    size_t earth_surface = add(&material_list, lambertian(earth_texture));
+
+    add(&list, sphere(point3(0.0f, 0.0f, 0.0f), 2.0f, earth_surface));
 
     return list;
 }
@@ -123,8 +137,8 @@ int main()
     const f32 aspect_ratio = 16.0f / 9.0f;
     const int image_width = 1200;
     const int image_height = i32(image_width / aspect_ratio);
-    const int samples_per_pixel = 10;
-    const int max_depth = 5;
+    const int samples_per_pixel = 100;
+    const int max_depth = 50;
 
     FILE* image_file = fopen("output.ppm", "w");
 
@@ -143,7 +157,8 @@ int main()
         List<Material> material_list = {};
         List<Texture> texture_list = {};
         //List<Hittable> list = random_scene(material_list, texture_list);
-        List<Hittable> list = two_perlin_spheres(material_list, texture_list);
+        List<Hittable> list = earth(material_list, texture_list);
+        //List<Hittable> list = two_perlin_spheres(material_list, texture_list);
 
         // Hittable h1 = sphere({0.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, dialectric(1.5f)));
         // add(&list, h1);

@@ -1,4 +1,19 @@
 
+Color emitted(List<Texture>* list, Material* material, f32 u, f32 v, const Point3& p)
+{
+    switch(material->type)
+    {
+    case MATERIAL_DIFFUSE_LIGHT:
+    {
+        return value(list, material->diffuse_light.emit_texture, u, v, p);
+    }
+    break;
+    default:
+    return color(0.0f, 0.0f, 0.0f);
+    }
+    return color(0.0f, 0.0f, 0.0f);    
+}
+
 bool scatter(List<Texture>* texture_list, Material* material, const Ray& r, const Hit_Record& record, Color& attenuation, Ray& scattered)
 {
     switch(material->type)

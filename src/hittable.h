@@ -243,13 +243,12 @@ inline void set_face_normal(Hit_Record& record, const Ray& r, const Vec3& outwar
     record.normal = record.front_face ? outward_normal : -outward_normal;
 }
 
-void get_sphere_uv(Hit_Record& record, const Vec3& p, f32& u, f32& v)
+void get_sphere_uv(const Vec3& p, f32& u, f32& v)
 {
     f32 phi = (f32)atan2(p.z, p.x);
     f32 theta = (f32)asin(p.y);
-    record.u = 1.0f - (phi + pi) / (2 * pi);
-    record.v = (theta + pi / 2) / pi;
-    
+    u = 1.0f - (phi + pi) / (2 * pi);
+    v = (theta + pi / 2) / pi;
 }
 
 b32 hit(const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record& record)
@@ -276,6 +275,7 @@ b32 hit(const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record
                 record.p = at(r, record.t);
                 Vec3 outward_normal = (record.p - center) / radius;
                 set_face_normal(record, r, outward_normal);
+                get_sphere_uv((record.p - center) / radius, record.u, record.v);
                 record.material_handle = hittable.material_handle;
                 return true;
             }
@@ -286,6 +286,7 @@ b32 hit(const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record
                 record.p = at(r, record.t);
                 Vec3 outward_normal = (record.p - center) / radius;
                 set_face_normal(record, r, outward_normal);
+                get_sphere_uv((record.p - center) / radius, record.u, record.v);
                 record.material_handle = hittable.material_handle;
                 return true;
             }
@@ -309,8 +310,11 @@ b32 hit(const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record
             {
                 record.t = temp;
                 record.p = at(r, record.t);
-                Vec3 outward_normal = (record.p - center(&hittable, r.time)) / radius;
+                Vec3 cent = center(&hittable, r.time);
+                Vec3 p_minus_c = record.p - cent;
+                Vec3 outward_normal = (p_minus_c) / radius;
                 set_face_normal(record, r, outward_normal);
+                get_sphere_uv(p_minus_c / radius, record.u, record.v);
                 record.material_handle = hittable.material_handle;
                 return true;
             }
@@ -319,8 +323,11 @@ b32 hit(const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record
             {
                 record.t = temp;
                 record.p = at(r, record.t);
-                Vec3 outward_normal = (record.p - center(&hittable, r.time)) / radius;
+                Vec3 cent = center(&hittable, r.time);
+                Vec3 p_minus_c = record.p - cent;
+                Vec3 outward_normal = (p_minus_c) / radius;
                 set_face_normal(record, r, outward_normal);
+                get_sphere_uv(p_minus_c / radius, record.u, record.v);
                 record.material_handle = hittable.material_handle;
                 return true;
             }

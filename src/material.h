@@ -5,7 +5,8 @@ enum Material_Type
 {
     MATERIAL_LAMBERTIAN,
     MATERIAL_METAL,
-    MATERIAL_DIALECTRIC
+    MATERIAL_DIALECTRIC,
+    MATERIAL_DIFFUSE_LIGHT
 };
 
 struct Material
@@ -27,6 +28,10 @@ struct Material
         {
             f32 ref_idx;
         } dialectric;
+        struct
+        {
+            size_t emit_texture;
+        } diffuse_light;
     };
 };
 
@@ -59,6 +64,14 @@ Material dialectric(f32 ref_idx)
     Material material = {};
     material.type = MATERIAL_DIALECTRIC;
     material.dialectric.ref_idx = ref_idx;
+    return material;
+}
+
+Material diffuse_light(size_t emit)
+{
+    Material material = {};
+    material.type = MATERIAL_DIFFUSE_LIGHT;
+    material.diffuse_light.emit_texture = emit;
     return material;
 }
 
