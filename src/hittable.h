@@ -17,7 +17,8 @@ enum Hittable_Type
 {
     HITTABLE_SPHERE,
     HITTABLE_MOVING_SPHERE,
-    HITTABLE_BVH_NODE
+    HITTABLE_BVH_NODE,
+    HITTABLE_XY_RECT
 };
 
 struct Hittable
@@ -46,6 +47,14 @@ struct Hittable
             Hittable* right;
             AABB box;
         } bvh_node;
+        struct
+        {
+            f32 x0;
+            f32 x1;
+            f32 y0;
+            f32 y1;
+            f32 k;
+        } xy_rect;
     };
 };
 
@@ -113,6 +122,13 @@ bool bounding_box(const Hittable* hittable, f32 t0, f32 t1, AABB& output_box)
         return true;
     }
     break;
+    case HITTABLE_XY_RECT:
+    {
+        output_box = aabb(point3(hittable->xy_rect.x0, hittable->xy_rect.y0, hittable->xy_rect.k - 0.0001f),
+                          point3(hittable->xy_rect.x1, hittable->xy_rect.y1, hittable->xy_rect.k + 0.0001f));
+        return true;
+    }
+    break;
     }
     return false;
 }
@@ -155,6 +171,19 @@ Hittable moving_sphere(Point3 c0, Point3 c1, f32 t0, f32 t1, f32 radius, size_t 
     hittable.moving_sphere.time1 = t1;
     hittable.moving_sphere.radius = radius;
     hittable.material_handle = material;
+    return hittable;
+}
+
+Hittable xy_rect(f32 x0, f32 x1, f32 y0, f32 y1, f32 k, size_t material)
+{
+    Hittable hittable = {};
+    hittable.type = HITTABLE_XY_RECT;
+    hittable.material_handle = material;
+    hittable.xy_rect.x0 = x0;
+    hittable.xy_rect.x1 = x1;
+    hittable.xy_rect.y0 = y0;
+    hittable.xy_rect.y1 = y1;
+    hittable.xy_rect.k = k;
     return hittable;
 }
 
@@ -343,6 +372,39 @@ b32 hit(const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record
         b32 hit_right = hit(*hittable.bvh_node.right, r, t_min, hit_left ? record.t : t_max, record);
 
         return hit_left || hit_right;
+    }
+    break;
+    case HITTABLE_XY_RECT:
+    {
+        f32 x0 = hittable.xy_rect.x0;
+        f32 x1 = hittable.xy_rect.x1;
+        f32 y0 = hittable.xy_rect.y0;
+        f32 y1 = hittable.xy_rect.y1;
+        f32 k = hittable.xy_rect.k;
+        // Solve for t:
+        f32 t = (k - r.origin.z) / r.direction.z;
+        if(t < t_min || t > t_max)
+        {
+            return false;
+        }
+
+        f32 x = r.origin.x + r.direction.x * t;
+        f32 y = r.origin.y + r.direction.y * t;
+
+        if(x < x0 || x > x1 || y < y0 || y > y1)
+        {
+            return false;
+        }
+
+        record.u = (x - x0) / (x1 - x0);
+        record.v = (y - y0) / (y1 - y0);
+        record.t = t;
+
+        Vec3 outward_normal = vec3(0.0f, 0.0f, 1.0f);
+        set_face_normal(record, r, outward_normal);
+        record.material_handle = hittable.material_handle;
+        record.p = at(r, t);
+        return true;
     }
     break;
     default:

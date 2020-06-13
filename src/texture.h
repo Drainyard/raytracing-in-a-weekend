@@ -115,9 +115,7 @@ Color value(List<Texture>* list, size_t handle, f32 u, f32 v, const Vec3& p)
     {
         f32 scale = texture->noise.scale;
         Perlin& noise = texture->noise.noise;
-        /* return color(1.0f, 1.0f, 1.0f) * 0.5f * (1.0f + noise(&noise, scale * p)); */
-        return color(1.0f, 1.0f, 1.0f) * 0.5f * (1.0f + sin(scale * p.z + 10.0f * turb(&noise, scale * p)));
-//        return color(1.0f, 1.0f, 1.0f) * 0.5f * (1.0f + turb(&noise, scale * p));
+        return color(1.0f, 1.0f, 1.0f) * 0.5f * (1.0f + fsin(scale * p.z + 10.0f * turb(&noise, p)));
     }
     break;
     case TEXTURE_IMAGE:

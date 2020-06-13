@@ -51,12 +51,13 @@ Perlin perlin()
     return perlin;                  
 }
 
-inline f32 trilinear_interp(Vec3 c[2][2][2], f32 u, f32 v, f32 w)
+inline f32 perlin_interp(Vec3 c[2][2][2], f32 u, f32 v, f32 w)
 {
     f32 uu = u * u * (3 - 2 * u);
     f32 vv = v * v * (3 - 2 * v);
     f32 ww = w * w * (3 - 2 * w);
     f32 accum = 0.0f;
+    
     for(i32 i = 0; i < 2; i++)
     {
         for(i32 j = 0; j < 2; j++)
@@ -64,9 +65,10 @@ inline f32 trilinear_interp(Vec3 c[2][2][2], f32 u, f32 v, f32 w)
             for(i32 k = 0; k < 2; k++)
             {
                 Vec3 weight_v = vec3(u - i, v - j, w - k);
-                accum += (i * uu + (1 - i) * (1 - uu)) *
-                    (j * vv + (1 - j) * (1 - vv)) *
-                    (k * ww + (1 - k) * (1 - ww)) * dot(c[i][j][k], weight_v);
+                accum += (i * uu + (1 - i) * (1 - uu))
+                    * (j * vv + (1 - j) * (1 - vv))
+                    * (k * ww + (1 - k) * (1 - ww))
+                    * dot(c[i][j][k], weight_v);
             }
         }
     }
@@ -99,7 +101,7 @@ f32 noise(Perlin* perlin, const Point3& p)
         }
     }
 
-    return trilinear_interp(c, u, v, w);
+    return perlin_interp(c, u, v, w);
 }
 
 f32 turb(Perlin* perlin, const Point3& p, i32 depth = 7)
@@ -110,7 +112,7 @@ f32 turb(Perlin* perlin, const Point3& p, i32 depth = 7)
 
     for(i32 i = 0; i < depth; i++)
     {
-        accum += weight * noise(perlin, p);
+        accum += weight * noise(perlin, temp_p);
         weight *= 0.5f;
         temp_p *= 2.0f;
     }

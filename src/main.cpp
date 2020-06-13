@@ -20,7 +20,7 @@
 #include "camera.h"
 #include "material.cpp"
 
-Color ray_color(List<Texture>* texture_list, List<Material>* material_list, const Ray& r, const List<Hittable>* world, i32 depth)
+Color ray_color(List<Texture>* texture_list, List<Material>* material_list, const Ray& r, const Color background, const List<Hittable>* world, i32 depth)
 {
     Hit_Record record = {};
     if(depth <= 0)
@@ -28,19 +28,38 @@ Color ray_color(List<Texture>* texture_list, List<Material>* material_list, cons
         return color(0.0f, 0.0f, 0.0f);
                                            
     }
-    if(hit(world, r, 0.001f, infinity, record))
+
+    if(!hit(world, r, 0.001f, infinity, record))
     {
-        Ray scattered = {};
-        Color attenuation = {};
-        if(scatter(texture_list, &material_list->data[record.material_handle], r, record, attenuation, scattered))
-        {
-            return attenuation * ray_color(texture_list, material_list, scattered, world, depth - 1);
-        }
-        return color(0.0f, 0.0f, 0.0f);
+        return background;
     }
-    Vec3 unit_direction = unit_vector(r.direction);
-    f32 t = 0.5f * (unit_direction.y + 1.0f);
-    return (1.0f - t) * color(1.0f, 1.0f, 1.0f) + t * color(0.5f, 0.7f, 1.0f);
+    
+
+    Ray scattered = {};
+    Color attenuation = {};
+    Color emitted_color = emitted(texture_list, &material_list->data[record.material_handle], record.u, record.v, record.p);
+
+    if(!scatter(texture_list, &material_list->data[record.material_handle], r, record, attenuation, scattered))
+    {
+        return emitted_color;
+    }
+        
+    return emitted_color + attenuation * ray_color(texture_list, material_list, scattered, background, world, depth - 1);
+}
+
+List<Hittable> simple_light(List<Material>& material_list, List<Texture>& texture_list)
+{
+    List<Hittable> list = {};
+
+    size_t per_text = add(&texture_list, noise(10.0f));
+    add(&list, sphere(point3(0.0f, -1000.0f, 0.0f), 1000.0f, add(&material_list, lambertian(per_text))));
+    add(&list, sphere(point3(0.0f, 2.0f, 0.0f), 2.0f, add(&material_list, lambertian(per_text))));
+
+    size_t diff_light = add(&material_list, diffuse_light(add(&texture_list, solid_color(4.0f, 4.0f, 4.0f))));
+    add(&list, sphere(point3(0.0f, 7.0f, 0.0f), 2.0f, diff_light));
+    add(&list, xy_rect(3, 5, 1, 3, -2, diff_light));
+
+    return list;
 }
 
 List<Hittable> two_spheres(List<Material>& material_list, List<Texture>& texture_list)
@@ -62,7 +81,7 @@ List<Hittable> two_perlin_spheres(List<Material>& material_list, List<Texture>& 
 {
     List<Hittable> list = {};
 
-    size_t per_text = add(&texture_list, noise(10.0f));
+    size_t per_text = add(&texture_list, noise(4.0f));
     add(&list, sphere(point3(0.0f, -1000.0f, 0.0f), 1000.0f, add(&material_list, lambertian(per_text))));
     add(&list, sphere(point3(0.0f, 2.0f, 0.0f), 2.0f, add(&material_list, lambertian(per_text))));
 
@@ -135,16 +154,16 @@ List<Hittable> random_scene(List<Material>& material_list, List<Texture>& textur
 int main()
 {
     const f32 aspect_ratio = 16.0f / 9.0f;
-    const int image_width = 1200;
+    const int image_width = 600;
     const int image_height = i32(image_width / aspect_ratio);
-    const int samples_per_pixel = 100;
-    const int max_depth = 50;
+    const int samples_per_pixel = 1000;
+    const int max_depth = 500;
 
     FILE* image_file = fopen("output.ppm", "w");
 
     if(image_file)
     {
-        Point3 look_from = point3(13.0f, 2.0f, 3.0f);
+        Point3 look_from = point3(25.0f, 8.0f, 3.0f);
         Point3 look_at = point3(0.0f, 0.0f, 0.0f);
         Vec3 v_up = vec3(0.0f, 1.0f, 0.0f);
         f32 dist_to_focus = 10.0f;
@@ -157,7 +176,8 @@ int main()
         List<Material> material_list = {};
         List<Texture> texture_list = {};
         //List<Hittable> list = random_scene(material_list, texture_list);
-        List<Hittable> list = earth(material_list, texture_list);
+        //List<Hittable> list = earth(material_list, texture_list);
+        List<Hittable> list = simple_light(material_list, texture_list);
         //List<Hittable> list = two_perlin_spheres(material_list, texture_list);
 
         // Hittable h1 = sphere({0.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, dialectric(1.5f)));
@@ -170,6 +190,8 @@ int main()
         // Hittable h3 = sphere({4.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, metal(color(0.7f, 0.6, 0.5f), 0.0f)));
         // add(&list, h3);
 
+        Color background = color(0.0f, 0.0f, 0.0f);
+
         for(i32 j = image_height - 1; j >= 0; --j)
         {
             fprintf(stderr, "\rScanlines remaining: %d", j);
@@ -181,7 +203,7 @@ int main()
                     f32 u = (i + random_float()) / (image_width - 1);
                     f32 v = (j + random_float()) / (image_height - 1);
                     Ray r = get_ray(&camera, u, v);
-                    pixel_color += ray_color(&texture_list, &material_list, r, &list, max_depth);
+                    pixel_color += ray_color(&texture_list, &material_list, r, background, &list, max_depth);
                 }
                 write_color(image_file, pixel_color, samples_per_pixel);
             }
