@@ -18,7 +18,9 @@ enum Hittable_Type
     HITTABLE_SPHERE,
     HITTABLE_MOVING_SPHERE,
     HITTABLE_BVH_NODE,
-    HITTABLE_XY_RECT
+    HITTABLE_XY_RECT,
+    HITTABLE_XZ_RECT,
+    HITTABLE_YZ_RECT,
 };
 
 struct Hittable
@@ -55,6 +57,22 @@ struct Hittable
             f32 y1;
             f32 k;
         } xy_rect;
+        struct
+        {
+            f32 x0;
+            f32 x1;
+            f32 z0;
+            f32 z1;
+            f32 k;
+        } xz_rect;
+        struct
+        {
+            f32 y0;
+            f32 y1;
+            f32 z0;
+            f32 z1;
+            f32 k;
+        } yz_rect;
     };
 };
 
@@ -129,6 +147,20 @@ bool bounding_box(const Hittable* hittable, f32 t0, f32 t1, AABB& output_box)
         return true;
     }
     break;
+    case HITTABLE_XZ_RECT:
+    {
+        output_box = aabb(point3(hittable->xz_rect.x0, hittable->xz_rect.k - 0.0001f, hittable->xz_rect.z0),
+                          point3(hittable->xz_rect.x1, hittable->xz_rect.k + 0.0001f, hittable->xz_rect.z1));
+        return true;
+    }
+    break;
+    case HITTABLE_YZ_RECT:
+    {
+        output_box = aabb(point3(hittable->yz_rect.k - 0.0001f, hittable->yz_rect.y0, hittable->yz_rect.z0),
+                          point3(hittable->yz_rect.k + 0.0001f, hittable->yz_rect.y1, hittable->yz_rect.z1));
+        return true;
+    }
+    break;
     }
     return false;
 }
@@ -184,6 +216,32 @@ Hittable xy_rect(f32 x0, f32 x1, f32 y0, f32 y1, f32 k, size_t material)
     hittable.xy_rect.y0 = y0;
     hittable.xy_rect.y1 = y1;
     hittable.xy_rect.k = k;
+    return hittable;
+}
+
+Hittable xz_rect(f32 x0, f32 x1, f32 z0, f32 z1, f32 k, size_t material)
+{
+    Hittable hittable = {};
+    hittable.type = HITTABLE_XZ_RECT;
+    hittable.material_handle = material;
+    hittable.xz_rect.x0 = x0;
+    hittable.xz_rect.x1 = x1;
+    hittable.xz_rect.z0 = z0;
+    hittable.xz_rect.z1 = z1;
+    hittable.xz_rect.k = k;
+    return hittable;
+}
+
+Hittable yz_rect(f32 y0, f32 y1, f32 z0, f32 z1, f32 k, size_t material)
+{
+    Hittable hittable = {};
+    hittable.type = HITTABLE_YZ_RECT;
+    hittable.material_handle = material;
+    hittable.yz_rect.y0 = y0;
+    hittable.yz_rect.y1 = y1;
+    hittable.yz_rect.z0 = z0;
+    hittable.yz_rect.z1 = z1;
+    hittable.yz_rect.k = k;
     return hittable;
 }
 
@@ -398,6 +456,72 @@ b32 hit(const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record
 
         record.u = (x - x0) / (x1 - x0);
         record.v = (y - y0) / (y1 - y0);
+        record.t = t;
+
+        Vec3 outward_normal = vec3(0.0f, 0.0f, 1.0f);
+        set_face_normal(record, r, outward_normal);
+        record.material_handle = hittable.material_handle;
+        record.p = at(r, t);
+        return true;
+    }
+    break;
+    case HITTABLE_XZ_RECT:
+    {
+        f32 x0 = hittable.xz_rect.x0;
+        f32 x1 = hittable.xz_rect.x1;
+        f32 z0 = hittable.xz_rect.z0;
+        f32 z1 = hittable.xz_rect.z1;
+        f32 k = hittable.xz_rect.k;
+        // Solve for t:
+        f32 t = (k - r.origin.y) / r.direction.y;
+        if(t < t_min || t > t_max)
+        {
+            return false;
+        }
+
+        f32 x = r.origin.x + r.direction.x * t;
+        f32 z = r.origin.z + r.direction.z * t;
+
+        if(x < x0 || x > x1 || z < z0 || z > z1)
+        {
+            return false;
+        }
+
+        record.u = (x - x0) / (x1 - x0);
+        record.v = (z - z0) / (z1 - z0);
+        record.t = t;
+
+        Vec3 outward_normal = vec3(0.0f, 0.0f, 1.0f);
+        set_face_normal(record, r, outward_normal);
+        record.material_handle = hittable.material_handle;
+        record.p = at(r, t);
+        return true;
+    }
+    break;
+    case HITTABLE_YZ_RECT:
+    {
+        f32 y0 = hittable.yz_rect.y0;
+        f32 y1 = hittable.yz_rect.y1;
+        f32 z0 = hittable.yz_rect.z0;
+        f32 z1 = hittable.yz_rect.z1;
+        f32 k = hittable.yz_rect.k;
+        // Solve for t:
+        f32 t = (k - r.origin.x) / r.direction.x;
+        if(t < t_min || t > t_max)
+        {
+            return false;
+        }
+
+        f32 y = r.origin.y + r.direction.y * t;
+        f32 z = r.origin.z + r.direction.z * t;
+
+        if(y < y0 || y > y1 || z < z0 || z > z1)
+        {
+            return false;
+        }
+
+        record.u = (y - y0) / (y1 - y0);
+        record.v = (z - z0) / (z1 - z0);
         record.t = t;
 
         Vec3 outward_normal = vec3(0.0f, 0.0f, 1.0f);

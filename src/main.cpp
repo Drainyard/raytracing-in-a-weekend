@@ -47,6 +47,25 @@ Color ray_color(List<Texture>* texture_list, List<Material>* material_list, cons
     return emitted_color + attenuation * ray_color(texture_list, material_list, scattered, background, world, depth - 1);
 }
 
+List<Hittable> cornell_box(List<Material>& material_list, List<Texture>& texture_list)
+{
+    List<Hittable> list = {};
+
+    size_t red = add(&material_list, lambertian(add(&texture_list, solid_color(0.65f, 0.5f, 0.5f))));
+    size_t white = add(&material_list, lambertian(add(&texture_list, solid_color(0.73f, 0.73f, 0.73f))));
+    size_t green = add(&material_list, lambertian(add(&texture_list, solid_color(0.12f, 0.45f, 0.15f))));
+    size_t light = add(&material_list, diffuse_light(add(&texture_list, solid_color(15.0f, 15.0f, 15.0f))));
+
+    add(&list, yz_rect(0, 555, 0, 555, 555, green));
+    add(&list, yz_rect(0, 555, 0, 555, 0, red));
+    add(&list, xz_rect(213, 343, 227, 332, 554, light));
+    add(&list, xz_rect(0, 555, 0, 555, 0, white));
+    add(&list, xz_rect(0, 555, 0, 555, 555, white));
+    add(&list, xy_rect(0, 555, 0, 555, 555, white));
+    
+    return list;
+}
+
 List<Hittable> simple_light(List<Material>& material_list, List<Texture>& texture_list)
 {
     List<Hittable> list = {};
@@ -156,20 +175,21 @@ int main()
     const f32 aspect_ratio = 16.0f / 9.0f;
     const int image_width = 600;
     const int image_height = i32(image_width / aspect_ratio);
-    const int samples_per_pixel = 1000;
-    const int max_depth = 500;
+    const int samples_per_pixel = 100;
+    const int max_depth = 50;
 
     FILE* image_file = fopen("output.ppm", "w");
 
     if(image_file)
     {
-        Point3 look_from = point3(25.0f, 8.0f, 3.0f);
-        Point3 look_at = point3(0.0f, 0.0f, 0.0f);
+        Point3 look_from = point3(278, 278, -800);
+        Point3 look_at = point3(278, 278, 0.0f);
         Vec3 v_up = vec3(0.0f, 1.0f, 0.0f);
         f32 dist_to_focus = 10.0f;
         f32 aperture = 0.0f;
+        f32 v_fov = 40.0f;
         Camera camera = create_camera(look_from, look_at, v_up,
-                                      20.0f, aspect_ratio, aperture, dist_to_focus, 0.0f, 1.0f);
+                                      v_fov, aspect_ratio, aperture, dist_to_focus, 0.0f, 1.0f);
         
         fprintf(image_file, "P3\n%d %d \n255\n", image_width, image_height);
 
@@ -177,7 +197,8 @@ int main()
         List<Texture> texture_list = {};
         //List<Hittable> list = random_scene(material_list, texture_list);
         //List<Hittable> list = earth(material_list, texture_list);
-        List<Hittable> list = simple_light(material_list, texture_list);
+        //List<Hittable> list = simple_light(material_list, texture_list);
+        List<Hittable> list = cornell_box(material_list, texture_list);
         //List<Hittable> list = two_perlin_spheres(material_list, texture_list);
 
         // Hittable h1 = sphere({0.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, dialectric(1.5f)));
