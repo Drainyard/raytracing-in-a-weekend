@@ -33,7 +33,6 @@ Color ray_color(List<Texture>* texture_list, List<Material>* material_list, cons
     {
         return background;
     }
-    
 
     Ray scattered = {};
     Color attenuation = {};
@@ -51,10 +50,10 @@ List<Hittable> cornell_box(List<Material>& material_list, List<Texture>& texture
 {
     List<Hittable> list = {};
 
-    size_t red = add(&material_list, lambertian(add(&texture_list, solid_color(0.65f, 0.5f, 0.5f))));
+    size_t red = add(&material_list, lambertian(add(&texture_list, solid_color(0.65f, 0.05f, 0.05f))));
     size_t white = add(&material_list, lambertian(add(&texture_list, solid_color(0.73f, 0.73f, 0.73f))));
     size_t green = add(&material_list, lambertian(add(&texture_list, solid_color(0.12f, 0.45f, 0.15f))));
-    size_t light = add(&material_list, diffuse_light(add(&texture_list, solid_color(15.0f, 15.0f, 15.0f))));
+    size_t light = add(&material_list, diffuse_light(add(&texture_list, solid_color(7.0f, 7.0f, 7.0f))));
 
     add(&list, yz_rect(0, 555, 0, 555, 555, green));
     add(&list, yz_rect(0, 555, 0, 555, 0, red));
@@ -62,8 +61,120 @@ List<Hittable> cornell_box(List<Material>& material_list, List<Texture>& texture
     add(&list, xz_rect(0, 555, 0, 555, 0, white));
     add(&list, xz_rect(0, 555, 0, 555, 555, white));
     add(&list, xy_rect(0, 555, 0, 555, 555, white));
+
+    
+    Hittable* main_box_1 = alloc_hittable(box(point3(0, 0, 0), point3(165, 330, 165), white));
+
+    Hittable* rotate_box = alloc_hittable(rotate_y(&list, main_box_1, 15));
+    add(&list, translate(rotate_box, vec3(265, 0, 295)));
+
+    Hittable *main_box_2 = alloc_hittable(box(point3(0, 0, 0), point3(165, 165, 165), white));
+
+    Hittable* rotate_box_2 = alloc_hittable(rotate_y(&list, main_box_2, -18));
+    add(&list, translate(rotate_box_2, vec3(130, 0, 65)));
+    
     
     return list;
+}
+
+List<Hittable> cornell_smoke(List<Material>& material_list, List<Texture>& texture_list)
+{
+    List<Hittable> list = {};
+
+    size_t red = add(&material_list, lambertian(add(&texture_list, solid_color(0.65f, 0.05f, 0.05f))));
+    size_t white = add(&material_list, lambertian(add(&texture_list, solid_color(0.73f, 0.73f, 0.73f))));
+    size_t green = add(&material_list, lambertian(add(&texture_list, solid_color(0.12f, 0.45f, 0.15f))));
+    size_t light = add(&material_list, diffuse_light(add(&texture_list, solid_color(7.0f, 7.0f, 7.0f))));
+
+    add(&list, yz_rect(0, 555, 0, 555, 555, green));
+    add(&list, yz_rect(0, 555, 0, 555, 0, red));
+    add(&list, xz_rect(113, 443, 127, 432, 554, light));
+    add(&list, xz_rect(0, 555, 0, 555, 0, white));
+    add(&list, xz_rect(0, 555, 0, 555, 555, white));
+    add(&list, xy_rect(0, 555, 0, 555, 555, white));
+    
+    Hittable* main_box_1 = alloc_hittable(box(point3(0, 0, 0), point3(165, 330, 165), white));
+
+    Hittable* rotate_box = alloc_hittable(rotate_y(&list, main_box_1, 15));
+    Hittable* t_1 = alloc_hittable(translate(rotate_box, vec3(265, 0, 295)));
+
+    Hittable *main_box_2 = alloc_hittable(box(point3(0, 0, 0), point3(165, 165, 165), white));
+
+    Hittable* rotate_box_2 = alloc_hittable(rotate_y(&list, main_box_2, -18));
+    Hittable* t_2 = alloc_hittable(translate(rotate_box_2, vec3(130, 0, 65)));
+
+    add(&list, constant_medium(&material_list, t_1, 0.01f, add(&texture_list, solid_color(color(0, 0, 0)))));
+    add(&list, constant_medium(&material_list, t_2, 0.01f, add(&texture_list, solid_color(color(1, 1, 1)))));
+    
+    return list;
+}
+
+List<Hittable> final_scene(List<Material>& material_list, List<Texture>& texture_list)
+{
+    List<Hittable> boxes1 = {};
+
+    size_t ground = add(&material_list, lambertian(add(&texture_list, solid_color(0.48, 0.83, 0.53))));
+
+    const i32 boxes_per_side = 20;
+
+    for(i32 i = 0; i < boxes_per_side; i++)
+    {
+        for(i32 j = 0; j < boxes_per_side; j++)
+        {
+            f32 w = 100.0f;
+            f32 x0 = -1000.0f + i * w;
+            f32 z0 = -1000.0f + j * w;
+            f32 y0 = 0.0f;
+            f32 x1 = x0 + w;
+            f32 y1 = random_float(1, 101);
+            f32 z1 = z0 + w;
+
+            add(&boxes1, box(point3(x0, y0, z0), point3(x1, y1, z1), ground));
+        }
+    }
+
+    List<Hittable> objects = {};
+
+    add(&objects, bvh_node(&boxes1, 0, 1));
+
+    size_t light = add(&material_list, diffuse_light(add(&texture_list, solid_color(7, 7, 7))));
+    add(&objects, xz_rect(123, 423, 147, 412, 554, light));
+
+    Point3 center1 = point3(400, 400, 200);
+    Point3 center2 = center1 + vec3(30, 0, 0);
+    size_t moving_sphere_material = add(&material_list, lambertian(add(&texture_list, solid_color(0.7, 0.3, 0.1))));
+
+    add(&objects, moving_sphere(center1, center2, 0, 1, 50, moving_sphere_material));
+
+    add(&objects, sphere(point3(260, 150, 45), 50, add(&material_list, dialectric(1.5f))));
+    add(&objects, sphere(point3(0, 150, 145), 50, add(&material_list, metal(color(0.8f, 0.8f, 0.9f), 10.0f))));
+
+    size_t boundary = add(&objects, sphere(point3(360, 150, 145), 70, add(&material_list, dialectric(1.5f))));
+    add(&objects, constant_medium(&material_list, &objects.data[boundary], 0.2f, add(&texture_list, solid_color(0.2f, 0.4f, 0.9f))));
+
+    Hittable* sphere_boundary = alloc_hittable(sphere(point3(0, 0, 0), 5000, add(&material_list, dialectric(1.5f))));
+    add(&objects, constant_medium(&material_list, sphere_boundary, 0.0001f, add(&texture_list, solid_color(1, 1, 1))));
+
+    size_t emat = add(&material_list, lambertian(add(&texture_list, image("earthmap.jpg"))));
+    add(&objects, sphere(point3(400, 200, 400), 100, emat));
+
+    size_t pertext = add(&texture_list, noise(0.1f));
+    add(&objects, sphere(point3(220, 280, 300), 80, add(&material_list, lambertian(pertext))));
+    
+    List<Hittable> boxes2 = {};
+
+    size_t white = add(&material_list, lambertian(add(&texture_list, solid_color(.73f, .73f, .73f))));
+    i32 ns = 1000;
+    for(i32 j = 0; j < ns; j++)
+    {
+        add(&boxes2, sphere(random_vec3(0, 165), 10, white));
+    }
+
+    Hittable* bvh = alloc_hittable(bvh_node(&boxes2, 0.0f, 1.0f));
+    Hittable* rotated = alloc_hittable(rotate_y(&objects, bvh, 15.0f));
+    add(&objects, translate(rotated, vec3(-100, 270, 395)));
+
+    return objects;
 }
 
 List<Hittable> simple_light(List<Material>& material_list, List<Texture>& texture_list)
@@ -172,46 +283,138 @@ List<Hittable> random_scene(List<Material>& material_list, List<Texture>& textur
 
 int main()
 {
-    const f32 aspect_ratio = 16.0f / 9.0f;
-    const int image_width = 600;
-    const int image_height = i32(image_width / aspect_ratio);
-    const int samples_per_pixel = 100;
-    const int max_depth = 50;
+    f32 aspect_ratio = 1.0f / 1.0f;
+    i32 image_width = 400;
+    i32 image_height = i32(image_width / aspect_ratio);
+    const i32 samples_per_pixel = 100;
+    const i32 max_depth = 50;
 
     FILE* image_file = fopen("output.ppm", "w");
 
     if(image_file)
     {
-        Point3 look_from = point3(278, 278, -800);
-        Point3 look_at = point3(278, 278, 0.0f);
+        Vec3 look_from = point3(278, 278, -800);
+        Vec3 look_at = point3(278, 278, 0.0f);
         Vec3 v_up = vec3(0.0f, 1.0f, 0.0f);
         f32 dist_to_focus = 10.0f;
         f32 aperture = 0.0f;
-        f32 v_fov = 40.0f;
-        Camera camera = create_camera(look_from, look_at, v_up,
-                                      v_fov, aspect_ratio, aperture, dist_to_focus, 0.0f, 1.0f);
-        
-        fprintf(image_file, "P3\n%d %d \n255\n", image_width, image_height);
+        f32 v_fov = 40.0f;       
 
         List<Material> material_list = {};
         List<Texture> texture_list = {};
-        //List<Hittable> list = random_scene(material_list, texture_list);
-        //List<Hittable> list = earth(material_list, texture_list);
-        //List<Hittable> list = simple_light(material_list, texture_list);
-        List<Hittable> list = cornell_box(material_list, texture_list);
-        //List<Hittable> list = two_perlin_spheres(material_list, texture_list);
-
-        // Hittable h1 = sphere({0.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, dialectric(1.5f)));
-        // add(&list, h1);
-
-        // size_t t2 = add(&texture_list, solid_color(color(0.4f, 0.2f, 0.1f)));
-        // Hittable h2 = sphere({-4.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, lambertian(t2)));
-        // add(&list, h2);
-
-        // Hittable h3 = sphere({4.0f, 1.0f, 0.0f}, 1.0f, add(&material_list, metal(color(0.7f, 0.6, 0.5f), 0.0f)));
-        // add(&list, h3);
+        List<Hittable> list = {};
 
         Color background = color(0.0f, 0.0f, 0.0f);
+
+        switch(8)
+        {
+        case 1:
+        {
+            aspect_ratio = 16.0f / 9.0f;
+            image_width = 600;
+            image_height = i32(image_width / aspect_ratio);
+            
+            list = random_scene(material_list, texture_list);
+            look_from = point3(13,2,3);
+            look_at = point3(0,0,0);
+            v_fov = 20.0;
+            background = color(0.70f, 0.80f, 1.00f);
+        }
+        break;
+
+        case 2:
+        {
+            aspect_ratio = 16.0f / 9.0f;
+            image_width = 600;
+            image_height = i32(image_width / aspect_ratio);
+            
+            list = two_spheres(material_list, texture_list);
+            look_from = point3(13,2,3);
+            look_at = point3(0,0,0);
+            v_fov = 20.0;
+            background = color(0.70f, 0.80f, 1.00f);
+        }
+        break;
+
+        case 3:
+        {
+            aspect_ratio = 16.0f / 9.0f;
+            image_width = 600;
+            image_height = i32(image_width / aspect_ratio);
+            
+            list = two_perlin_spheres(material_list, texture_list);
+            look_from = point3(13,2,3);
+            look_at = point3(0,0,0);
+            v_fov = 20.0;
+            background = color(0.70f, 0.80f, 1.00f);
+        }
+        break;
+
+        case 4:
+        {
+            aspect_ratio = 16.0f / 9.0f;
+            image_width = 600;
+            image_height = i32(image_width / aspect_ratio);
+
+            look_from = point3(0, 0, 12);
+            look_at = point3(0, 0, 0);
+            v_fov = 20.0f;
+            list = earth(material_list, texture_list);    
+        }
+        break;
+        case 5:
+        {
+            aspect_ratio = 16.0f / 9.0f;
+            image_width = 600;
+            image_height = i32(image_width / aspect_ratio);
+            
+            look_from = point3(26, 3, 6);
+            look_at = point3(0, 2, 0);
+            v_fov = 20.0f;
+            list = simple_light(material_list, texture_list);    
+        }
+        break;
+        case 6:
+        {
+            aspect_ratio = 1.0f;
+            image_width = 400;
+            image_height = i32(image_width / aspect_ratio);
+            
+            look_from = point3(278, 278, -800);
+            look_at = point3(278, 278, 0);
+            v_fov = 40.0f;
+            list = cornell_box(material_list, texture_list);
+        }
+        break;
+        case 7:
+        {
+            aspect_ratio = 1.0f;
+            image_width = 400;
+            image_height = i32(image_width / aspect_ratio);
+            
+            look_from = point3(278, 278, -800);
+            look_at = point3(278, 278, 0);
+            v_fov = 40.0f;
+            list = cornell_smoke(material_list, texture_list);
+        }
+        break;
+        case 8:
+        {
+            aspect_ratio = 1.0f;
+            image_width = 600;
+            image_height = i32(image_width / aspect_ratio);
+            
+            look_from = point3(478, 278, -600);
+            look_at = point3(278, 278, 0);
+            v_fov = 40.0f;
+            list = final_scene(material_list, texture_list);
+        }
+        break;
+        }
+
+        fprintf(image_file, "P3\n%d %d \n255\n", image_width, image_height);
+        Camera camera = create_camera(look_from, look_at, v_up,
+                                      v_fov, aspect_ratio, aperture, dist_to_focus, 0.0f, 1.0f);
 
         for(i32 j = image_height - 1; j >= 0; --j)
         {

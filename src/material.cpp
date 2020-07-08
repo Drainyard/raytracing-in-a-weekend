@@ -11,7 +11,6 @@ Color emitted(List<Texture>* list, Material* material, f32 u, f32 v, const Point
     default:
     return color(0.0f, 0.0f, 0.0f);
     }
-    return color(0.0f, 0.0f, 0.0f);    
 }
 
 bool scatter(List<Texture>* texture_list, Material* material, const Ray& r, const Hit_Record& record, Color& attenuation, Ray& scattered)
@@ -67,6 +66,13 @@ bool scatter(List<Texture>* texture_list, Material* material, const Ray& r, cons
         
         Vec3 refracted = refract(unit_direction, record.normal, etai_over_etat);
         scattered = ray(record.p, refracted);
+        return true;
+    }
+    break;
+    case MATERIAL_ISOTROPIC:
+    {
+        scattered = ray(record.p, random_in_unit_sphere(), r.time);
+        attenuation = value(texture_list, material->isotropic.albedo_handle, record.u, record.v, record.p);
         return true;
     }
     break;

@@ -1,18 +1,15 @@
 #ifndef VEC3_H
 #define VEC3_H
 
-struct Vec3
+union Vec3
 {
-    union
+    struct
     {
-        struct
-        {
-            f32 x;
-            f32 y;
-            f32 z;
-        };
-        f32 e[3];
+        f32 x;
+        f32 y;
+        f32 z;
     };
+    f32 e[3];
 
     Vec3 operator-() const
     {
@@ -210,7 +207,6 @@ inline Vec3 refract(const Vec3& uv, const Vec3& n, f32 etai_over_etat)
     Vec3 r_out_perp = -fsqrt(1.0f - length_squared(r_out_parallel)) * n;
     return r_out_parallel + r_out_perp;
 }
-
 
 using Point3 = Vec3;
 using Color = Vec3;

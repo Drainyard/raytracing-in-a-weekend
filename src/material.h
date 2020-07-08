@@ -6,7 +6,8 @@ enum Material_Type
     MATERIAL_LAMBERTIAN,
     MATERIAL_METAL,
     MATERIAL_DIALECTRIC,
-    MATERIAL_DIFFUSE_LIGHT
+    MATERIAL_DIFFUSE_LIGHT,
+    MATERIAL_ISOTROPIC
 };
 
 struct Material
@@ -32,6 +33,10 @@ struct Material
         {
             size_t emit_texture;
         } diffuse_light;
+        struct
+        {
+            size_t albedo_handle;
+        } isotropic;
     };
 };
 
@@ -72,6 +77,14 @@ Material diffuse_light(size_t emit)
     Material material = {};
     material.type = MATERIAL_DIFFUSE_LIGHT;
     material.diffuse_light.emit_texture = emit;
+    return material;
+}
+
+Material isotropic(size_t texture)
+{
+    Material material = {};
+    material.type = MATERIAL_ISOTROPIC;
+    material.isotropic.albedo_handle = texture;
     return material;
 }
 
