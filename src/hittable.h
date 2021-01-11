@@ -111,6 +111,9 @@ struct Hittable
     };
 };
 
+b32 hit(const List<Hittable>* list, const Ray& ray, f32 t_min, f32 t_max, Hit_Record& record);
+b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record& record);
+
 Hittable* alloc_hittable(Hittable hittable)
 {
     Hittable* result = (Hittable*)malloc(sizeof(Hittable));
@@ -269,6 +272,44 @@ bool bounding_box(List<Hittable>* list, f32 t0, f32 t1, AABB& output_box)
     return true;
 }
 
+f32 pdf_value(const List<Hittable>* list, const Hittable& hittable, const Point3& origin, const Vec3& v)
+{
+    switch(hittable.type)
+    {
+    case HITTABLE_XZ_RECT:
+    {
+        Hit_Record rec = {};
+        if (!hit(list, hittable, ray(origin, v), 0.001f, infinity, rec))
+        {
+            return 0.0f;
+        }
+
+        f32 area = (hittable.xz_rect.x1 - hittable.xz_rect.x0) * (hittable.xz_rect.z1 - hittable.xz_rect.z0);
+        f32 distance_squared = rec.t * rec.t * length_squared(v);
+        f32 cosine = fabs(dot(v, rec.normal) / length(v));
+
+        return distance_squared / (cosine * area);
+    }
+    }
+    return 0.0f;
+}
+
+Vec3 random(const Hittable& hittable, const Vec3& origin)
+{
+    switch(hittable.type)
+    {
+    case HITTABLE_XZ_RECT:
+    {
+        f32 x0 = hittable.xz_rect.x0;
+        f32 x1 = hittable.xz_rect.x1;
+        f32 z0 = hittable.xz_rect.z0;
+        f32 z1 = hittable.xz_rect.z1;
+        Point3 random_point = point3(random_float(x0, x1), hittable.xz_rect.k, random_float(z0, z1));
+        return random_point - origin;
+    }
+    }
+    return vec3(1.0f, 0.0f, 0.0f);
+}
 
 Hittable sphere(Point3 center, f32 radius, size_t material)
 {
@@ -368,6 +409,7 @@ Hittable translate(Hittable* hittable, Vec3 offset)
     translate.translate.offset = offset;
     return translate;
 }
+
 
 Hittable rotate_y(List<Hittable>* list, Hittable* hittable, f32 angle)
 {
@@ -539,8 +581,6 @@ void get_sphere_uv(const Vec3& p, f32& u, f32& v)
     u = 1.0f - (phi + pi) / (2 * pi);
     v = (theta + pi / 2) / pi;
 }
-
-b32 hit(const List<Hittable>* list, const Ray& ray, f32 t_min, f32 t_max, Hit_Record& record);
 
 b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record& record)
 {
@@ -743,6 +783,7 @@ b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f
         }
 
         record.front_face = !record.front_face;
+        return true;
     }
     break;
     case HITTABLE_BOX:

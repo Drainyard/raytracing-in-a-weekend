@@ -19,10 +19,11 @@
 #include "material.h"
 #include "aabb.h"
 #include "hittable.h"
+#include "pdf.h"
 #include "camera.h"
 #include "material.cpp"
 
-Color ray_color(List<Texture>* texture_list, List<Material>* material_list, const Ray& r, const Color background, const List<Hittable>* world, i32 depth)
+Color ray_color(List<Texture>* texture_list, List<Material>* material_list, const Ray& r, const Color background, const List<Hittable>* world, const Hittable* lights, i32 depth)
 {
     Hit_Record record = {};
     if(depth <= 0)
@@ -37,39 +38,29 @@ Color ray_color(List<Texture>* texture_list, List<Material>* material_list, cons
     }
 
     Ray scattered = {};
-    Color attenuation = {};
-    Color emitted_color = emitted(texture_list, &material_list->data[record.material_handle], record.u, record.v, record.p);
-    f32 pdf;
+    Color emitted_color = emitted(texture_list, &material_list->data[record.material_handle], record, record.u, record.v, record.p);
+    f32 pdf_val;
     Color albedo;
 
-    if(!scatter(texture_list, &material_list->data[record.material_handle], r, record, albedo, scattered, pdf))
+    if(!scatter(texture_list, &material_list->data[record.material_handle], r, record, albedo, scattered, pdf_val))
     {
         return emitted_color;
     }
 
-    Point3 on_light = point3(random_float(213, 343), 554, random_float(227, 332));
-    Vec3 to_light = on_light - record.p;
-    f32 distance_squared = length_squared(to_light);
-    to_light = unit_vector(to_light);
+    PDF p0 = hittable_pdf(lights, record.p);
+    PDF p1 = cosine(record.normal);
+    PDF mixed_pdf = mixture(&p0, &p1);
 
-    if(dot(to_light, record.normal) < 0.0f)
-    {
-        return emitted_color;
-    }
+    scattered = ray(record.p, generate(mixed_pdf), r.time);
+    pdf_val = value(world, mixed_pdf, scattered.direction);
 
-    f32 light_area = (343 - 213) * (332 - 227);
-    f32 light_cosine = fabs(to_light.y);
-    if(light_cosine < 0.000001f)
-    {
-        return emitted_color;
-    }
+    // Hittable light_pdf = hittable_pdf(lights, record.p);
+    // scattered = ray(record.p, generate(light_pdf), r.time);
+    // pdf_val = value(world, light_pdf, scattered.direction);
 
-    pdf = distance_squared / (light_cosine * light_area);
-    scattered = ray(record.p, to_light, r.time);
-
-    return emitted_color +
-        albedo * scattering_pdf(&material_list->data[record.material_handle], r, record, scattered)
-        * ray_color(texture_list, material_list, scattered, background, world, depth - 1) / pdf;
+    return emitted_color
+        + albedo * scattering_pdf(&material_list->data[record.material_handle], r, record, scattered)
+        * ray_color(texture_list, material_list, scattered, background, world, lights, depth - 1) / pdf_val;
 }
 
 List<Hittable> cornell_box(List<Material>& material_list, List<Texture>& texture_list)
@@ -79,14 +70,17 @@ List<Hittable> cornell_box(List<Material>& material_list, List<Texture>& texture
     size_t red = add(&material_list, lambertian(add(&texture_list, solid_color(0.65f, 0.05f, 0.05f))));
     size_t white = add(&material_list, lambertian(add(&texture_list, solid_color(0.73f, 0.73f, 0.73f))));
     size_t green = add(&material_list, lambertian(add(&texture_list, solid_color(0.12f, 0.45f, 0.15f))));
-    size_t light = add(&material_list, diffuse_light(add(&texture_list, solid_color(7.0f, 7.0f, 7.0f))));
+    size_t light = add(&material_list, diffuse_light(add(&texture_list, solid_color(15.0f, 15.0f, 15.0f))));
 
     add(&list, yz_rect(0, 555, 0, 555, 555, green));
     add(&list, yz_rect(0, 555, 0, 555, 0, red));
-    add(&list, xz_rect(213, 343, 227, 332, 554, light));
+   
     add(&list, xz_rect(0, 555, 0, 555, 0, white));
     add(&list, xz_rect(0, 555, 0, 555, 555, white));
     add(&list, xy_rect(0, 555, 0, 555, 555, white));
+
+    Hittable* light_rect = alloc_hittable(xz_rect(213, 343, 227, 332, 554, light));
+    add(&list, flip_face(light_rect));
     
     Hittable* main_box_1 = alloc_hittable(box(point3(0, 0, 0), point3(165, 330, 165), white));
 
@@ -313,7 +307,7 @@ i32 main()
     f32 aspect_ratio = 1.0f / 1.0f;
     i32 image_width = 600;
     i32 image_height = i32(image_width / aspect_ratio);
-    const i32 samples_per_pixel = 100;
+    const i32 samples_per_pixel = 1000;
     const i32 max_depth = 50;
 
     char filename[256];
@@ -333,6 +327,8 @@ i32 main()
         List<Material> material_list = {};
         List<Texture> texture_list = {};
         List<Hittable> list = {};
+
+        Hittable* lights = alloc_hittable(xz_rect(213, 343, 227, 332, 554, 0));
 
         Color background = color(0.0f, 0.0f, 0.0f);
 
@@ -457,7 +453,7 @@ i32 main()
                     f32 u = (i + random_float()) / (image_width - 1);
                     f32 v = (j + random_float()) / (image_height - 1);
                     Ray r = get_ray(&camera, u, v);
-                    pixel_color += ray_color(&texture_list, &material_list, r, background, &list, max_depth);
+                    pixel_color += ray_color(&texture_list, &material_list, r, background, &list, lights, max_depth);
                 }
                 write_color(image_file, pixel_color, samples_per_pixel);
             }

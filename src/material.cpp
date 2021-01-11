@@ -1,11 +1,14 @@
 
-Color emitted(List<Texture>* list, Material* material, f32 u, f32 v, const Point3& p)
+Color emitted(List<Texture>* list, Material* material, const Hit_Record& record, f32 u, f32 v, const Point3& p)
 {
     switch(material->type)
     {
     case MATERIAL_DIFFUSE_LIGHT:
     {
-        return value(list, material->diffuse_light.emit_texture, u, v, p);
+        if (record.front_face)
+            return value(list, material->diffuse_light.emit_texture, u, v, p);
+        else
+            return color(0.0f, 0.0f, 0.0f);
     }
     break;
     default:
@@ -13,7 +16,7 @@ Color emitted(List<Texture>* list, Material* material, f32 u, f32 v, const Point
     }
 }
 
-bool scattering_pdf(Material* material, const Ray& r, const Hit_Record& record, Ray& scattered)
+f32 scattering_pdf(Material* material, const Ray& r, const Hit_Record& record, Ray& scattered)
 {
     switch(material->type)
     {
@@ -24,7 +27,7 @@ bool scattering_pdf(Material* material, const Ray& r, const Hit_Record& record, 
     }
     break;
     }
-    return false;
+    return 0.0f;
 }
 
 bool scatter(List<Texture>* texture_list, Material* material, const Ray& r, const Hit_Record& record, Color& albedo, Ray& scattered, f32& pdf)
@@ -33,10 +36,21 @@ bool scatter(List<Texture>* texture_list, Material* material, const Ray& r, cons
     {
     case Material_Type::MATERIAL_LAMBERTIAN:
     {
+        // Vec3 scatter_direction = record.normal + random_unit_vector();
+
+        // // Catch degenerate scatter direction
+        // if (near_zero(scatter_direction))
+        //     scatter_direction = record.normal;
+        
+        // scattered = ray(record.p, unit_vector(scatter_direction), r.time);
+        // albedo = value(texture_list, material->lambertian.albedo_handle, record.u, record.v, record.p);
+        // pdf = dot(record.normal, scattered.direction) / pi;
+        // return true;
+        
         ONB uvw = build_from_w(record.normal);
         Vec3 direction = local(uvw, random_cosine_direction());
         
-        scattered = ray(record.p, unit_vector(direction), r.time);
+        scattered = ray(record.p, record.normal, r.time);
         albedo = value(texture_list, material->lambertian.albedo_handle, record.u, record.v, record.p);
         pdf = dot(uvw.w, scattered.direction) / pi;
         return true;
