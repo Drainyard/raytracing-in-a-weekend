@@ -1,6 +1,8 @@
 #ifndef HITTABLE_H
 #define HITTABLE_H
 
+#include <algorithm>
+
 struct Hit_Record
 {
     Point3 p;
@@ -436,7 +438,18 @@ inline i32 box_compare(List<Hittable>* list, const Hittable* a, const Hittable* 
     if(!bounding_box(list, a, 0.0f, 0.0f, box_a) || !bounding_box(list, b, 0.0f, 0.0f, box_b))
         printf("No bounding box in BVH_Node constructor\n");
 
-    return box_a.min.e[axis] < box_b.min.e[axis];
+    f32 val_a = box_a.min.e[axis];
+    f32 val_b = box_b.min.e[axis];
+    if(val_a < val_b)
+    {
+        return -1;
+    }
+    else if(val_a > val_b)
+    {
+        return 1;
+    }
+
+    return 0;
 }
 
 i32 box_x_compare(const void* a, const void* b)
@@ -461,7 +474,7 @@ Hittable bvh_node(List<Hittable>* objects, size_t start, size_t end, f32 time0, 
     temp_list = objects;
     
     i32 axis = random_int(0, 2);
-    i32 (*comparator)(const void*, const void*) = (axis == 0) ? box_x_compare :
+    auto comparator = (axis == 0) ? box_x_compare :
         (axis == 1) ? box_y_compare : box_z_compare;
 
     size_t object_span = end - start;
@@ -473,7 +486,7 @@ Hittable bvh_node(List<Hittable>* objects, size_t start, size_t end, f32 time0, 
     }
     else if(object_span == 2)
     {
-        if(comparator(&objects->data[start], &objects->data[start + 1]))
+        if(comparator(&objects->data[start], &objects->data[start + 1]) == -1)
         {
             hittable.bvh_node.left = &objects->data[start];
             hittable.bvh_node.right = &objects->data[start + 1];
@@ -486,7 +499,8 @@ Hittable bvh_node(List<Hittable>* objects, size_t start, size_t end, f32 time0, 
     }
     else
     {
-        qsort(objects->data, objects->count, sizeof(Hittable), comparator);
+        /* std::sort(objects->data + start, objects->data + end, comparator); */
+        qsort(objects->data + start, end - start, sizeof(Hittable), comparator);
 
         size_t mid = start + (object_span/2);
         size_t left = add(objects, bvh_node(objects, start, mid, time0, time1));

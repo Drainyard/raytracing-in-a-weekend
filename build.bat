@@ -15,8 +15,8 @@ set ExtraLinkerFlags=/NODEFAULTLIB:"LIBCMT" -incremental:no -opt:ref /ignore:409
 
 IF %DEBUG% NEQ 1 set Console=/SUBSYSTEM:windows /ENTRY:mainCRTStartup
 
-IF NOT EXIST build mkdir build
-pushd build
+IF NOT EXIST bin mkdir bin
+pushd bin
 
 del *.pdb > NUL 2> NUL
 

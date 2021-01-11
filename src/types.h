@@ -15,7 +15,7 @@ using u16 = uint16_t;
 using u32 = uint32_t;
 using u64 = uint64_t;
 
-using f32 = float;
+using f32 = double;
 using f64 = double;
 
 #endif

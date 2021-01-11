@@ -1,6 +1,7 @@
 #include "types.h"
 #include "stdio.h"
 #include <stdlib.h>
+#include <time.h>
 #include <assert.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -10,6 +11,7 @@
 #include <math.h>
 #include "math_util.h"
 #include "vec3.h"
+#include "onb.h"
 #include "color.h"
 #include "ray.h"
 #include "perlin.h"
@@ -37,13 +39,37 @@ Color ray_color(List<Texture>* texture_list, List<Material>* material_list, cons
     Ray scattered = {};
     Color attenuation = {};
     Color emitted_color = emitted(texture_list, &material_list->data[record.material_handle], record.u, record.v, record.p);
+    f32 pdf;
+    Color albedo;
 
-    if(!scatter(texture_list, &material_list->data[record.material_handle], r, record, attenuation, scattered))
+    if(!scatter(texture_list, &material_list->data[record.material_handle], r, record, albedo, scattered, pdf))
     {
         return emitted_color;
     }
-        
-    return emitted_color + attenuation * ray_color(texture_list, material_list, scattered, background, world, depth - 1);
+
+    Point3 on_light = point3(random_float(213, 343), 554, random_float(227, 332));
+    Vec3 to_light = on_light - record.p;
+    f32 distance_squared = length_squared(to_light);
+    to_light = unit_vector(to_light);
+
+    if(dot(to_light, record.normal) < 0.0f)
+    {
+        return emitted_color;
+    }
+
+    f32 light_area = (343 - 213) * (332 - 227);
+    f32 light_cosine = fabs(to_light.y);
+    if(light_cosine < 0.000001f)
+    {
+        return emitted_color;
+    }
+
+    pdf = distance_squared / (light_cosine * light_area);
+    scattered = ray(record.p, to_light, r.time);
+
+    return emitted_color +
+        albedo * scattering_pdf(&material_list->data[record.material_handle], r, record, scattered)
+        * ray_color(texture_list, material_list, scattered, background, world, depth - 1) / pdf;
 }
 
 List<Hittable> cornell_box(List<Material>& material_list, List<Texture>& texture_list)
@@ -61,7 +87,6 @@ List<Hittable> cornell_box(List<Material>& material_list, List<Texture>& texture
     add(&list, xz_rect(0, 555, 0, 555, 0, white));
     add(&list, xz_rect(0, 555, 0, 555, 555, white));
     add(&list, xy_rect(0, 555, 0, 555, 555, white));
-
     
     Hittable* main_box_1 = alloc_hittable(box(point3(0, 0, 0), point3(165, 330, 165), white));
 
@@ -116,7 +141,6 @@ List<Hittable> final_scene(List<Material>& material_list, List<Texture>& texture
     size_t ground = add(&material_list, lambertian(add(&texture_list, solid_color(0.48, 0.83, 0.53))));
 
     const i32 boxes_per_side = 20;
-
     for(i32 i = 0; i < boxes_per_side; i++)
     {
         for(i32 j = 0; j < boxes_per_side; j++)
@@ -131,7 +155,7 @@ List<Hittable> final_scene(List<Material>& material_list, List<Texture>& texture
 
             add(&boxes1, box(point3(x0, y0, z0), point3(x1, y1, z1), ground));
         }
-    }
+    }   
 
     List<Hittable> objects = {};
 
@@ -147,7 +171,7 @@ List<Hittable> final_scene(List<Material>& material_list, List<Texture>& texture
     add(&objects, moving_sphere(center1, center2, 0, 1, 50, moving_sphere_material));
 
     add(&objects, sphere(point3(260, 150, 45), 50, add(&material_list, dialectric(1.5f))));
-    add(&objects, sphere(point3(0, 150, 145), 50, add(&material_list, metal(color(0.8f, 0.8f, 0.9f), 10.0f))));
+    add(&objects, sphere(point3(0, 150, 145), 50, add(&material_list, metal(color(0.8f, 0.8f, 0.9f), 1.0f))));
 
     size_t boundary = add(&objects, sphere(point3(360, 150, 145), 70, add(&material_list, dialectric(1.5f))));
     add(&objects, constant_medium(&material_list, &objects.data[boundary], 0.2f, add(&texture_list, solid_color(0.2f, 0.4f, 0.9f))));
@@ -172,7 +196,7 @@ List<Hittable> final_scene(List<Material>& material_list, List<Texture>& texture
 
     Hittable* bvh = alloc_hittable(bvh_node(&boxes2, 0.0f, 1.0f));
     Hittable* rotated = alloc_hittable(rotate_y(&objects, bvh, 15.0f));
-    add(&objects, translate(rotated, vec3(-100, 270, 395)));
+    add(&objects, translate(rotated, vec3(-100, 290, 395)));
 
     return objects;
 }
@@ -281,15 +305,21 @@ List<Hittable> random_scene(List<Material>& material_list, List<Texture>& textur
     return list;
 }
 
-int main()
+i32 main()
 {
+    time_t t;
+    srand((unsigned) time(&t));
+
     f32 aspect_ratio = 1.0f / 1.0f;
-    i32 image_width = 400;
+    i32 image_width = 600;
     i32 image_height = i32(image_width / aspect_ratio);
     const i32 samples_per_pixel = 100;
     const i32 max_depth = 50;
 
-    FILE* image_file = fopen("output.ppm", "w");
+    char filename[256];
+    sprintf(filename, "%d_samples_cornell.ppm", samples_per_pixel);
+
+    FILE* image_file = fopen(filename, "w");
 
     if(image_file)
     {
@@ -306,7 +336,7 @@ int main()
 
         Color background = color(0.0f, 0.0f, 0.0f);
 
-        switch(8)
+        switch(6)
         {
         case 1:
         {
@@ -377,7 +407,7 @@ int main()
         case 6:
         {
             aspect_ratio = 1.0f;
-            image_width = 400;
+            image_width = 600;
             image_height = i32(image_width / aspect_ratio);
             
             look_from = point3(278, 278, -800);
@@ -432,6 +462,7 @@ int main()
                 write_color(image_file, pixel_color, samples_per_pixel);
             }
         }
+        fprintf(stderr, "\n");
         
         fclose(image_file);
     }

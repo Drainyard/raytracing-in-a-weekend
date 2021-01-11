@@ -125,6 +125,12 @@ inline Vec3 cross(const Vec3 &u, const Vec3 &v)
             u.e[0] * v.e[1] - u.e[1] * v.e[0]};
 }
 
+inline bool near_zero(Vec3 v)
+{
+    const f32 s = 1e-8;
+    return (fabs(v.e[0]) < s) && (fabs(v.e[1]) < s) && (fabs(v.e[2]) < s);
+}
+
 inline Vec3 unit_vector(Vec3 v)
 {
     return v / length(v);
@@ -183,6 +189,19 @@ inline Vec3 random_in_hemisphere(const Vec3& normal)
         return result;
     }
     return -result;
+}
+
+inline Vec3 random_cosine_direction()
+{
+    f32 r1 = random_float();
+    f32 r2 = random_float();
+    f32 z = sqrt(1 - r2);
+
+    f32 phi = 2 * pi * r1;
+    f32 x = cos(phi) * sqrt(r2);
+    f32 y = sin(phi) * sqrt(r2);
+
+    return vec3(x, y, z);
 }
 
 inline Vec3 random_in_unit_disk()
