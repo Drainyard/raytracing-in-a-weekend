@@ -8,6 +8,8 @@ enum PDF_Type
     PDF_MIXTURE
 };
 
+struct Hittable;
+
 struct PDF
 {
     PDF_Type type;
@@ -36,7 +38,7 @@ PDF* alloc_pdf(PDF pdf)
     return result;
 }
 
-PDF cosine(Vec3& normal)
+PDF cosine(const Vec3& normal)
 {
     PDF pdf = {};
     pdf.type = PDF_COSINE;
@@ -44,7 +46,7 @@ PDF cosine(Vec3& normal)
     return pdf;
 }
 
-PDF hittable_pdf(const Hittable* hittable, const Point3& origin)
+PDF hittable_pdf(Hittable* hittable, const Point3& origin)
 {
     PDF pdf = {};
     pdf.type = PDF_HITTABLE;
@@ -64,7 +66,7 @@ PDF mixture(PDF* p1, PDF* p2)
     return pdf;
 }
 
-f32 value(const List<Hittable>* list, const PDF& pdf, const Vec3& direction)
+f32 value(const HittableList* list, const PDF& pdf, const Vec3& direction)
 {
     switch(pdf.type)
     {
@@ -75,7 +77,7 @@ f32 value(const List<Hittable>* list, const PDF& pdf, const Vec3& direction)
     }
     case PDF_HITTABLE:
     {
-        return pdf_value(list, *pdf.hittable.hittable, pdf.hittable.o, direction);
+        return pdf_value(*list, *pdf.hittable.hittable, pdf.hittable.o, direction);
     }
     case PDF_MIXTURE:
     {

@@ -27,92 +27,113 @@ enum Hittable_Type
     HITTABLE_BOX,
     HITTABLE_TRANSLATE,
     HITTABLE_ROTATE_Y,
-    HITTABLE_CONSTANT_MEDIUM
+    HITTABLE_CONSTANT_MEDIUM,
+    HITTABLE_LIST
 };
 
 struct Hittable
 {
     Hittable_Type type;
     size_t material_handle;
-    
-    union
-    {
-        struct
-        {
-            Point3 center;
-            f32 radius;
-        } sphere;
-        struct
-        {
-            Point3 center0;
-            Point3 center1;
-            f32 time0;
-            f32 time1;
-            f32 radius;
-        } moving_sphere;
-        struct
-        {
-            Hittable* left;
-            Hittable* right;
-            AABB box;
-        } bvh_node;
-        struct
-        {
-            f32 x0;
-            f32 x1;
-            f32 y0;
-            f32 y1;
-            f32 k;
-        } xy_rect;
-        struct
-        {
-            f32 x0;
-            f32 x1;
-            f32 z0;
-            f32 z1;
-            f32 k;
-        } xz_rect;
-        struct
-        {
-            f32 y0;
-            f32 y1;
-            f32 z0;
-            f32 z1;
-            f32 k;
-        } yz_rect;
-        struct
-        {
-            Hittable* hittable;
-        } flip_face;
-        struct
-        {
-            List<Hittable> hittables;
-            Point3 box_min;
-            Point3 box_max;
-        } box;
-        struct
-        {
-            Hittable* hittable;
-            Vec3 offset;
-        } translate;
-        struct
-        {
-            Hittable* hittable;
-            f32 sin_theta;
-            f32 cos_theta;
-            b32 has_box;
-            AABB bbox;
-        } rotate_y;
-        struct
-        {
-            Hittable* boundary;
-            f32 neg_inv_density;
-        } constant_medium;
-    };
 };
 
-b32 hit(const List<Hittable>* list, const Ray& ray, f32 t_min, f32 t_max, Hit_Record& record);
-b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record& record);
+struct Sphere : Hittable
+{
+    Point3 center;
+    f32 radius;
+};
+
+struct MovingSphere : Hittable
+{
+    Point3 center0;
+    Point3 center1;
+    f32 radius;
+    f32 time0;
+    f32 time1;
+};
+
+struct BVHNode : Hittable
+{
+    Hittable* left;
+    Hittable* right;
+    AABB box;
+};
+
+struct XYRect : Hittable
+{
+    f32 x0;
+    f32 x1;
+    f32 y0;
+    f32 y1;
+    f32 k;
+};
+
+struct XZRect : Hittable
+{
+    f32 x0;
+    f32 x1;
+    f32 z0;
+    f32 z1;
+    f32 k;
+};
+
+struct YZRect : Hittable
+{
+    f32 y0;
+    f32 y1;
+    f32 z0;
+    f32 z1;
+    f32 k;
+};
+
+struct FlipFace : Hittable
+{
+    Hittable* ptr;
+};
+
+struct HittableList : Hittable
+{
+    List<Hittable*> list;
+};
+
+size_t add(HittableList* list, Hittable* value)
+{
+    return add(&list->list, value);
+}
+
+struct Box : Hittable
+{
+    Point3 box_min;
+    Point3 box_max;
+    HittableList sides;
+};
+
+struct Translate : Hittable
+{
+    Hittable* ptr;
+    Vec3 offset;
+};
+
+struct RotateY : Hittable
+{
+    Hittable* ptr;
+    f32 sin_theta;
+    f32 cos_theta;
+    b32 has_box;
+    AABB bbox;
+};
+
+struct ConstantMedium : Hittable
+{
+    Hittable* boundary;
+    f32 neg_inv_density;
+};
+
+#define AS(type, value) ((type*)value)
+
+
+b32 hit(const HittableList& list, const Ray& ray, f32 t_min, f32 t_max, Hit_Record& record);
+b32 hit(const HittableList& objects, const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record& record);
 
 Hittable* alloc_hittable(Hittable hittable)
 {
@@ -121,17 +142,12 @@ Hittable* alloc_hittable(Hittable hittable)
     return result;
 }
 
-Point3 center(const Hittable* hittable, f32 time)
+Point3 center(const MovingSphere* hittable, f32 time)
 {
-    if(hittable->type != HITTABLE_MOVING_SPHERE)
-    {
-        return point3(0, 0, 0);
-    }
-    
-    Point3 center0 = hittable->moving_sphere.center0;
-    Point3 center1 = hittable->moving_sphere.center1;
-    f32 time0 = hittable->moving_sphere.time0;
-    f32 time1 = hittable->moving_sphere.time1;
+    Point3 center0 = hittable->center0;
+    Point3 center1 = hittable->center1;
+    f32 time0 = hittable->time0;
+    f32 time1 = hittable->time1;
     
     return center0 + ((time - time0) / (time1 - time0)) * (center1 - center0);
 }
@@ -149,49 +165,50 @@ AABB surrounding_box(AABB *box0, AABB* box1)
     return aabb(small, big);
 }
 
-bool bounding_box(List<Hittable>* list, const Hittable* hittable, f32 t0, f32 t1, AABB& output_box)
+bool bounding_box(HittableList& list, const Hittable* hittable, f32 t0, f32 t1, AABB& output_box)
 {
     switch(hittable->type)
     {
     case HITTABLE_SPHERE:
     {
-        f32 radius = hittable->sphere.radius;
+        Sphere* sphere = AS(Sphere, hittable);
+        f32 radius = sphere->radius;
         output_box = aabb(
-            hittable->sphere.center - vec3(radius, radius, radius),
-            hittable->sphere.center + vec3(radius, radius, radius)
+            sphere->center - vec3(radius, radius, radius),
+            sphere->center + vec3(radius, radius, radius)
                           );
         return true;
     }
     break;
     case HITTABLE_MOVING_SPHERE:
     {
-        f32 radius = hittable->moving_sphere.radius;
-        output_box = aabb(
-            hittable->sphere.center - vec3(radius, radius, radius),
-            hittable->sphere.center + vec3(radius, radius, radius)
-                          );
-        AABB box0 = aabb(center(hittable, t0) - vec3(radius, radius, radius),
-                         center(hittable, t0) + vec3(radius, radius, radius));
+        MovingSphere* moving_sphere = AS(MovingSphere, hittable);
+        f32 radius = moving_sphere->radius;
 
-        AABB box1 = aabb(center(hittable, t1) - vec3(radius, radius, radius),
-                         center(hittable, t1) + vec3(radius, radius, radius));
+        AABB box0 = aabb(center(moving_sphere, t0) - vec3(radius, radius, radius),
+                         center(moving_sphere, t0) + vec3(radius, radius, radius));
+
+        AABB box1 = aabb(center(moving_sphere, t1) - vec3(radius, radius, radius),
+                         center(moving_sphere, t1) + vec3(radius, radius, radius));
         output_box = surrounding_box(&box0, &box1);
         return true;
     }
     break;
     case HITTABLE_BVH_NODE:
     {
-        output_box = hittable->bvh_node.box;
+        BVHNode* bvh = AS(BVHNode, hittable);
+        output_box = bvh->box;
         return true;
     }
     break;
     case HITTABLE_XY_RECT:
     {
-        f32 k = hittable->xy_rect.k;
-        f32 x0 = hittable->xy_rect.x0;
-        f32 x1 = hittable->xy_rect.x1;
-        f32 y0 = hittable->xy_rect.y0;
-        f32 y1 = hittable->xy_rect.y1;
+        XYRect* rect = AS(XYRect, hittable);
+        f32 k = rect->k;
+        f32 x0 = rect->x0;
+        f32 x1 = rect->x1;
+        f32 y0 = rect->y0;
+        f32 y1 = rect->y1;
         output_box = aabb(point3(x0, y0, k - 0.0001f),
                           point3(x1, y1, k + 0.0001f));
         return true;
@@ -199,11 +216,12 @@ bool bounding_box(List<Hittable>* list, const Hittable* hittable, f32 t0, f32 t1
     break;
     case HITTABLE_XZ_RECT:
     {
-        f32 x0 = hittable->xz_rect.x0;
-        f32 x1 = hittable->xz_rect.x1;
-        f32 z0 = hittable->xz_rect.z0;
-        f32 z1 = hittable->xz_rect.z1;
-        f32 k = hittable->xz_rect.k;
+        XZRect* rect = AS(XZRect, hittable);
+        f32 x0 = rect->x0;
+        f32 x1 = rect->x1;
+        f32 z0 = rect->z0;
+        f32 z1 = rect->z1;
+        f32 k = rect->k;
         output_box = aabb(point3(x0, k - 0.0001f, z0),
                           point3(x1, k + 0.0001f, z1));
         return true;
@@ -211,11 +229,12 @@ bool bounding_box(List<Hittable>* list, const Hittable* hittable, f32 t0, f32 t1
     break;
     case HITTABLE_YZ_RECT:
     {
-        f32 y0 = hittable->yz_rect.y0;
-        f32 y1 = hittable->yz_rect.z1;
-        f32 z0 = hittable->yz_rect.z0;
-        f32 z1 = hittable->yz_rect.z1;
-        f32 k = hittable->yz_rect.k;
+        YZRect* rect = AS(YZRect, hittable);
+        f32 y0 = rect->y0;
+        f32 y1 = rect->z1;
+        f32 z0 = rect->z0;
+        f32 z1 = rect->z1;
+        f32 k = rect->k;
         output_box = aabb(point3(k - 0.0001f, y0, z0),
                           point3(k + 0.0001f, y1, z1));
         return true;
@@ -223,18 +242,20 @@ bool bounding_box(List<Hittable>* list, const Hittable* hittable, f32 t0, f32 t1
     break;
     case HITTABLE_FLIP_FACE:
     {
-        return bounding_box(list, hittable->flip_face.hittable, t0, t1, output_box);
+        FlipFace* flip_face = AS(FlipFace, hittable);
+        return bounding_box(list, flip_face->ptr, t0, t1, output_box);
     }
     break;
     case HITTABLE_TRANSLATE:
     {
-        if(!bounding_box(list, hittable->translate.hittable, t0, t1, output_box))
+        Translate* translate = AS(Translate, hittable);
+        if(!bounding_box(list, translate->ptr, t0, t1, output_box))
         {
             return false;
         }
         output_box = aabb(
-            output_box.min + hittable->translate.offset,
-            output_box.max + hittable->translate.offset
+            output_box.min + translate->offset,
+            output_box.max + translate->offset
                           );
 
         return true;
@@ -242,37 +263,39 @@ bool bounding_box(List<Hittable>* list, const Hittable* hittable, f32 t0, f32 t1
     break;
     case HITTABLE_BOX:
     {
-        output_box = aabb(hittable->box.box_min, hittable->box.box_max);
+        Box* box = AS(Box, hittable);
+        output_box = aabb(box->box_min, box->box_max);
         return true;
     }
     break;
     case HITTABLE_CONSTANT_MEDIUM:
     {
-        return bounding_box(list, hittable->constant_medium.boundary, t0, t1, output_box);
+        ConstantMedium* medium = AS(ConstantMedium, hittable);
+        return bounding_box(list, medium->boundary, t0, t1, output_box);
     }
     break;
     }
     return false;
 }
 
-bool bounding_box(List<Hittable>* list, f32 t0, f32 t1, AABB& output_box)
+bool bounding_box(HittableList& list, f32 t0, f32 t1, AABB& output_box)
 {
-    if(empty(list)) return false;
+    if(empty(&list.list)) return false;    
 
     AABB temp_box = {};
     b32 first_box = true;
 
-    for(i32 i = 0; i < list->count; i++)
+    for(i32 i = 0; i < list.list.count; i++)
     {
-        Hittable& hittable = list->data[i];
-        if(!bounding_box(list, &hittable, t0, t1, temp_box)) return false;
+        Hittable* hittable = list.list.data[i];
+        if(!bounding_box(list, hittable, t0, t1, temp_box)) return false;
         output_box = first_box ? temp_box : surrounding_box(&output_box, &temp_box);
         first_box = false;
     }
     return true;
 }
 
-f32 pdf_value(const List<Hittable>* list, const Hittable& hittable, const Point3& origin, const Vec3& v)
+f32 pdf_value(const HittableList& list, const Hittable& hittable, const Point3& origin, const Vec3& v)
 {
     switch(hittable.type)
     {
@@ -283,12 +306,30 @@ f32 pdf_value(const List<Hittable>* list, const Hittable& hittable, const Point3
         {
             return 0.0f;
         }
+        
+        XZRect* xz_rect = AS(XZRect, &hittable);
 
-        f32 area = (hittable.xz_rect.x1 - hittable.xz_rect.x0) * (hittable.xz_rect.z1 - hittable.xz_rect.z0);
+        f32 area = (xz_rect->x1 - xz_rect->x0) * (xz_rect->z1 - xz_rect->z0);
         f32 distance_squared = rec.t * rec.t * length_squared(v);
         f32 cosine = fabs(dot(v, rec.normal) / length(v));
 
         return distance_squared / (cosine * area);
+    }
+    case HITTABLE_SPHERE:
+    {
+        Hit_Record rec = {};
+        if (!hit(list, hittable, ray(origin, v), 0.001f, infinity, rec))
+        {
+            return 0.0f;
+        }
+
+        Sphere* sphere = AS(Sphere, &hittable);
+        f32 radius = sphere->radius;
+        Point3 center = sphere->center;
+        f32 cos_theta_max = sqrt(1 - radius * radius / length_squared(center - origin));
+        f32 solid_angle = 2 * pi * (1 - cos_theta_max);
+
+        return 1.0f / solid_angle;
     }
     }
     return 0.0f;
@@ -300,134 +341,146 @@ Vec3 random(const Hittable& hittable, const Vec3& origin)
     {
     case HITTABLE_XZ_RECT:
     {
-        f32 x0 = hittable.xz_rect.x0;
-        f32 x1 = hittable.xz_rect.x1;
-        f32 z0 = hittable.xz_rect.z0;
-        f32 z1 = hittable.xz_rect.z1;
-        Point3 random_point = point3(random_float(x0, x1), hittable.xz_rect.k, random_float(z0, z1));
+        XZRect* xz_rect = AS(XZRect, &hittable);
+        f32 x0 = xz_rect->x0;
+        f32 x1 = xz_rect->x1;
+        f32 z0 = xz_rect->z0;
+        f32 z1 = xz_rect->z1;
+        Point3 random_point = point3(random_float(x0, x1), xz_rect->k, random_float(z0, z1));
         return random_point - origin;
+    }
+    case HITTABLE_SPHERE:
+    {
+        Sphere* sphere = AS(Sphere, &hittable);
+        Point3 center = sphere->center;
+        f32 radius = sphere->radius;
+        Vec3 direction = center - origin;
+        f32 distance_squared = length_squared(direction);
+        ONB uvw = build_from_w(direction);
+        return local(uvw, random_to_sphere(radius, distance_squared));
     }
     }
     return vec3(1.0f, 0.0f, 0.0f);
 }
 
-Hittable sphere(Point3 center, f32 radius, size_t material)
+Sphere* sphere(Point3 center, f32 radius, size_t material)
 {
-    Hittable hittable = {};
-    hittable.type = HITTABLE_SPHERE;
-    hittable.sphere.center = center;
-    hittable.sphere.radius = radius;
-    hittable.material_handle = material;
-    return hittable;
+    Sphere* sphere = allocate_struct(Sphere);
+    sphere->type = HITTABLE_SPHERE;
+    sphere->material_handle = material;
+    sphere->center = center;
+    sphere->radius = radius;
+    
+    return sphere;
 }
 
-Hittable moving_sphere(Point3 c0, Point3 c1, f32 t0, f32 t1, f32 radius, size_t material)
+MovingSphere* moving_sphere(Point3 c0, Point3 c1, f32 t0, f32 t1, f32 radius, size_t material)
 {
-    Hittable hittable = {};
-    hittable.type = HITTABLE_MOVING_SPHERE;
-    hittable.moving_sphere.center0 = c0;
-    hittable.moving_sphere.center1 = c1;
-    hittable.moving_sphere.time0 = t0;
-    hittable.moving_sphere.time1 = t1;
-    hittable.moving_sphere.radius = radius;
-    hittable.material_handle = material;
-    return hittable;
+    MovingSphere* sphere = allocate_struct(MovingSphere);
+    sphere->type = HITTABLE_MOVING_SPHERE;
+    sphere->center0 = c0;
+    sphere->center1 = c1;
+    sphere->time0 = t0;
+    sphere->time1 = t1;
+    sphere->radius = radius;
+    sphere->material_handle = material;
+    return sphere;
 }
 
-Hittable xy_rect(f32 x0, f32 x1, f32 y0, f32 y1, f32 k, size_t material)
+XYRect* xy_rect(f32 x0, f32 x1, f32 y0, f32 y1, f32 k, size_t material)
 {
-    Hittable hittable = {};
-    hittable.type = HITTABLE_XY_RECT;
-    hittable.material_handle = material;
-    hittable.xy_rect.x0 = x0;
-    hittable.xy_rect.x1 = x1;
-    hittable.xy_rect.y0 = y0;
-    hittable.xy_rect.y1 = y1;
-    hittable.xy_rect.k = k;
-    return hittable;
+    XYRect* xy_rect = allocate_struct(XYRect);
+    xy_rect->type = HITTABLE_XY_RECT;
+    xy_rect->material_handle = material;
+    xy_rect->x0 = x0;
+    xy_rect->x1 = x1;
+    xy_rect->y0 = y0;
+    xy_rect->y1 = y1;
+    xy_rect->k = k;
+    return xy_rect;
 }
 
-Hittable xz_rect(f32 x0, f32 x1, f32 z0, f32 z1, f32 k, size_t material)
+XZRect* xz_rect(f32 x0, f32 x1, f32 z0, f32 z1, f32 k, size_t material)
 {
-    Hittable hittable = {};
-    hittable.type = HITTABLE_XZ_RECT;
-    hittable.material_handle = material;
-    hittable.xz_rect.x0 = x0;
-    hittable.xz_rect.x1 = x1;
-    hittable.xz_rect.z0 = z0;
-    hittable.xz_rect.z1 = z1;
-    hittable.xz_rect.k = k;
-    return hittable;
+    XZRect* xz_rect = allocate_struct(XZRect);
+    xz_rect->type = HITTABLE_XZ_RECT;
+    xz_rect->material_handle = material;
+    xz_rect->x0 = x0;
+    xz_rect->x1 = x1;
+    xz_rect->z0 = z0;
+    xz_rect->z1 = z1;
+    xz_rect->k = k;
+    return xz_rect;
 }
 
-Hittable yz_rect(f32 y0, f32 y1, f32 z0, f32 z1, f32 k, size_t material)
+YZRect* yz_rect(f32 y0, f32 y1, f32 z0, f32 z1, f32 k, size_t material)
 {
-    Hittable hittable = {};
-    hittable.type = HITTABLE_YZ_RECT;
-    hittable.material_handle = material;
-    hittable.yz_rect.y0 = y0;
-    hittable.yz_rect.y1 = y1;
-    hittable.yz_rect.z0 = z0;
-    hittable.yz_rect.z1 = z1;
-    hittable.yz_rect.k = k;
-    return hittable;
+    YZRect* yz_rect = allocate_struct(YZRect);
+    yz_rect->type = HITTABLE_YZ_RECT;
+    yz_rect->material_handle = material;
+    yz_rect->y0 = y0;
+    yz_rect->y1 = y1;
+    yz_rect->z0 = z0;
+    yz_rect->z1 = z1;
+    yz_rect->k = k;
+    return yz_rect;
 }
 
-Hittable flip_face(Hittable* to_flip)
+FlipFace* flip_face(Hittable* to_flip)
 {
-    Hittable hittable = {};
-    hittable.type = HITTABLE_FLIP_FACE;
-    hittable.flip_face.hittable = to_flip;
-    return hittable;
+    FlipFace* flip_face = allocate_struct(FlipFace);
+    flip_face->type = HITTABLE_FLIP_FACE;
+    flip_face->ptr = to_flip;
+    return flip_face;
 }
 
-Hittable box(Point3 p0, Point3 p1, size_t material)
+Box* box(Point3 p0, Point3 p1, size_t material)
 {
-    Hittable box = {};
-    box.type = HITTABLE_BOX;
+    Box* box = allocate_struct(Box);
+    box->type = HITTABLE_BOX;
 
-    box.box.box_min = p0;
-    box.box.box_max = p1;
+    box->box_min = p0;
+    box->box_max = p1;
 
-    add(&box.box.hittables, xy_rect(p0.x, p1.x, p0.y, p1.y, p1.z, material));
-    add(&box.box.hittables, xy_rect(p0.x, p1.x, p0.y, p1.y, p0.z, material));
+    add(&box->sides, xy_rect(p0.x, p1.x, p0.y, p1.y, p1.z, material));
+    add(&box->sides, xy_rect(p0.x, p1.x, p0.y, p1.y, p0.z, material));
         
-    add(&box.box.hittables, xz_rect(p0.x, p1.x, p0.z, p1.z, p1.y, material));
-    add(&box.box.hittables, xz_rect(p0.x, p1.x, p0.z, p1.z, p0.y, material));
+    add(&box->sides, xz_rect(p0.x, p1.x, p0.z, p1.z, p1.y, material));
+    add(&box->sides, xz_rect(p0.x, p1.x, p0.z, p1.z, p0.y, material));
         
-    add(&box.box.hittables, yz_rect(p0.y, p1.y, p0.z, p1.z, p1.x, material));
-    add(&box.box.hittables, yz_rect(p0.y, p1.y, p0.z, p1.z, p0.x, material));
+    add(&box->sides, yz_rect(p0.y, p1.y, p0.z, p1.z, p1.x, material));
+    add(&box->sides, yz_rect(p0.y, p1.y, p0.z, p1.z, p0.x, material));
 
     return box;
 }
 
-Hittable translate(Hittable* hittable, Vec3 offset)
+Translate* translate(Hittable* hittable, Vec3 offset)
 {
-    Hittable translate = {};
-    translate.type = HITTABLE_TRANSLATE;
-    translate.translate.hittable = hittable;
-    translate.translate.offset = offset;
+    Translate* translate = allocate_struct(Translate);
+    translate->type = HITTABLE_TRANSLATE;
+    translate->ptr = hittable;
+    translate->offset = offset;
     return translate;
 }
 
 
-Hittable rotate_y(List<Hittable>* list, Hittable* hittable, f32 angle)
+RotateY* rotate_y(HittableList& list, Hittable* hittable, f32 angle)
 {
-    Hittable rotate_y = {};
-    rotate_y.type = HITTABLE_ROTATE_Y;
-    rotate_y.rotate_y.hittable = hittable;
+    RotateY* rotate_y = allocate_struct(RotateY);
+    rotate_y->type = HITTABLE_ROTATE_Y;
+    rotate_y->ptr = hittable;
     f32 radians = RADS_IN_DEGREES * angle;
-    rotate_y.rotate_y.sin_theta = fsin(radians);
-    rotate_y.rotate_y.cos_theta = fcos(radians);
-    rotate_y.rotate_y.has_box = bounding_box(list, hittable, 0.0f, 1.0f, rotate_y.rotate_y.bbox);
+    rotate_y->sin_theta = fsin(radians);
+    rotate_y->cos_theta = fcos(radians);
+    rotate_y->has_box = bounding_box(list, hittable, 0.0f, 1.0f, rotate_y->bbox);
 
     Point3 min = point3(infinity, infinity, infinity);
     Point3 max = point3(-infinity, -infinity, -infinity);
 
-    f32 cos_theta = rotate_y.rotate_y.cos_theta;
-    f32 sin_theta = rotate_y.rotate_y.sin_theta;
+    f32 cos_theta = rotate_y->cos_theta;
+    f32 sin_theta = rotate_y->sin_theta;
 
-    AABB bbox = rotate_y.rotate_y.bbox;
+    AABB bbox = rotate_y->bbox;
 
     for(i32 i = 0; i < 2; i++)
     {
@@ -458,26 +511,41 @@ Hittable rotate_y(List<Hittable>* list, Hittable* hittable, f32 angle)
     return rotate_y;
 }
 
-Hittable constant_medium(List<Material>* material_list, Hittable* boundary, f32 density, size_t texture_handle)
+ConstantMedium* constant_medium(List<Material>* material_list, Hittable* boundary, f32 density, size_t texture_handle)
 {
-    Hittable hittable = {};
-    hittable.type = HITTABLE_CONSTANT_MEDIUM;
-    hittable.material_handle = add(material_list, isotropic(texture_handle));
+    ConstantMedium* medium = allocate_struct(ConstantMedium);
+    medium->type = HITTABLE_CONSTANT_MEDIUM;
+    medium->material_handle = add(material_list, isotropic(texture_handle));
 
-    hittable.constant_medium.boundary = boundary;
-    hittable.constant_medium.neg_inv_density = -1.0f / density;
+    medium->boundary = boundary;
+    medium->neg_inv_density = -1.0f / density;
 
-    return hittable;
+    return medium;
 }
 
-List<Hittable>* temp_list;
-inline i32 box_compare(List<Hittable>* list, const Hittable* a, const Hittable* b, i32 axis)
+HittableList hittable_list()
+{
+    HittableList list = {};
+    list.type = HITTABLE_LIST;
+    return list;
+}
+
+HittableList* hittable_list(Hittable& object)
+{
+    HittableList* list = allocate_struct(HittableList);
+    list->type = HITTABLE_LIST;
+    add(list, &object);
+    return list;
+}
+
+HittableList* temp_list;
+inline i32 box_compare(HittableList* list, const Hittable* a, const Hittable* b, i32 axis)
 {
     temp_list = list;
     AABB box_a;
     AABB box_b;
 
-    if(!bounding_box(list, a, 0.0f, 0.0f, box_a) || !bounding_box(list, b, 0.0f, 0.0f, box_b))
+    if(!bounding_box(*list, a, 0.0f, 0.0f, box_a) || !bounding_box(*list, b, 0.0f, 0.0f, box_b))
         printf("No bounding box in BVH_Node constructor\n");
 
     f32 val_a = box_a.min.e[axis];
@@ -509,11 +577,11 @@ i32 box_z_compare(const void* a, const void* b)
     return box_compare(temp_list, (Hittable*)a, (Hittable*)b, 2);
 }
 
-Hittable bvh_node(List<Hittable>* objects, size_t start, size_t end, f32 time0, f32 time1)
+BVHNode* bvh_node(HittableList& objects, size_t start, size_t end, f32 time0, f32 time1)
 {
-    Hittable hittable = {};
-    hittable.type = HITTABLE_BVH_NODE;
-    temp_list = objects;
+    BVHNode* bvh = allocate_struct(BVHNode);
+    bvh->type = HITTABLE_BVH_NODE;
+    temp_list = &objects;
     
     i32 axis = random_int(0, 2);
     auto comparator = (axis == 0) ? box_x_compare :
@@ -523,49 +591,49 @@ Hittable bvh_node(List<Hittable>* objects, size_t start, size_t end, f32 time0, 
 
     if(object_span == 1)
     {
-        hittable.bvh_node.left = &objects->data[start];
-        hittable.bvh_node.right = &objects->data[start];
+        bvh->left = objects.list.data[start];
+        bvh->right = objects.list.data[start];
     }
     else if(object_span == 2)
     {
-        if(comparator(&objects->data[start], &objects->data[start + 1]) == -1)
+        if(comparator(&objects.list.data[start], &objects.list.data[start + 1]) == -1)
         {
-            hittable.bvh_node.left = &objects->data[start];
-            hittable.bvh_node.right = &objects->data[start + 1];
+            bvh->left = objects.list.data[start];
+            bvh->right = objects.list.data[start + 1];
         }
         else
         {
-            hittable.bvh_node.left = &objects->data[start + 1];
-            hittable.bvh_node.right = &objects->data[start];
+            bvh->left = objects.list.data[start + 1];
+            bvh->right = objects.list.data[start];
         }
     }
     else
     {
         /* std::sort(objects->data + start, objects->data + end, comparator); */
-        qsort(objects->data + start, end - start, sizeof(Hittable), comparator);
+        qsort(objects.list.data + start, end - start, sizeof(Hittable), comparator);
 
         size_t mid = start + (object_span/2);
-        size_t left = add(objects, bvh_node(objects, start, mid, time0, time1));
-        size_t right = add(objects, bvh_node(objects, mid, end, time0, time1));
-        hittable.bvh_node.left = &objects->data[left];
-        hittable.bvh_node.right = &objects->data[right];
+        size_t left = add(&objects, bvh_node(objects, start, mid, time0, time1));
+        size_t right = add(&objects, bvh_node(objects, mid, end, time0, time1));
+        bvh->left = objects.list.data[left];
+        bvh->right = objects.list.data[right];
     }
     
     AABB box_left, box_right;
 
-    if(!bounding_box(objects, hittable.bvh_node.left, time0, time1, box_left) ||
-       !bounding_box(objects, hittable.bvh_node.right, time0, time1, box_right))
+    if(!bounding_box(objects, bvh->left, time0, time1, box_left) ||
+       !bounding_box(objects, bvh->right, time0, time1, box_right))
     {
         printf("No bounding box in BVH_Node constructor\n");
     }
 
-    hittable.bvh_node.box = surrounding_box(&box_left, &box_right);
-    return hittable;
+    bvh->box = surrounding_box(&box_left, &box_right);
+    return bvh;
 }
 
-Hittable bvh_node(List<Hittable>* objects, f32 time0, f32 time1)
+BVHNode* bvh_node(HittableList& objects, f32 time0, f32 time1)
 {
-    return bvh_node(objects, 0, objects->count, time0, time1);
+    return bvh_node(objects, 0, objects.list.count, time0, time1);
 }
 
 inline void set_face_normal(Hit_Record& record, const Ray& r, const Vec3& outward_normal)
@@ -576,20 +644,22 @@ inline void set_face_normal(Hit_Record& record, const Ray& r, const Vec3& outwar
 
 void get_sphere_uv(const Vec3& p, f32& u, f32& v)
 {
-    f32 phi = (f32)atan2(p.z, p.x);
-    f32 theta = (f32)asin(p.y);
-    u = 1.0f - (phi + pi) / (2 * pi);
-    v = (theta + pi / 2) / pi;
+    f32 theta = acos(-p.y);
+    f32 phi = atan2(-p.z, p.x) + pi;
+
+    u = phi / (2 * pi);
+    v = theta / pi;
 }
 
-b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record& record)
+b32 hit(const HittableList& objects, const Hittable& hittable, const Ray& r, f32 t_min, f32 t_max, Hit_Record& record)
 {
     switch(hittable.type)
     {
     case HITTABLE_SPHERE:
     {
-        f32 radius = hittable.sphere.radius;
-        Vec3 center = hittable.sphere.center;
+        Sphere* sphere = AS(Sphere, &hittable);
+        f32 radius = sphere->radius;
+        Vec3 center = sphere->center;
         
         Vec3 oc = r.origin - center;
         f32 a = length_squared(r.direction);
@@ -626,8 +696,9 @@ b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f
     break;
     case HITTABLE_MOVING_SPHERE:
     {
-        f32 radius = hittable.moving_sphere.radius;
-        Vec3 oc = r.origin - center(&hittable, r.time);
+        MovingSphere* sphere = AS(MovingSphere, &hittable);
+        f32 radius = sphere->radius;
+        Vec3 oc = r.origin - center(sphere, r.time);
 
         f32 a = length_squared(r.direction);
         f32 half_b = dot(oc, r.direction);
@@ -641,7 +712,7 @@ b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f
             {
                 record.t = temp;
                 record.p = at(r, record.t);
-                Vec3 cent = center(&hittable, r.time);
+                Vec3 cent = center(sphere, r.time);
                 Vec3 p_minus_c = record.p - cent;
                 Vec3 outward_normal = (p_minus_c) / radius;
                 set_face_normal(record, r, outward_normal);
@@ -654,7 +725,7 @@ b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f
             {
                 record.t = temp;
                 record.p = at(r, record.t);
-                Vec3 cent = center(&hittable, r.time);
+                Vec3 cent = center(sphere, r.time);
                 Vec3 p_minus_c = record.p - cent;
                 Vec3 outward_normal = (p_minus_c) / radius;
                 set_face_normal(record, r, outward_normal);
@@ -667,22 +738,24 @@ b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f
     break;
     case HITTABLE_BVH_NODE:
     {
-        if(!hit(&hittable.bvh_node.box, r, t_min, t_max))
+        BVHNode* bvh = AS(BVHNode, &hittable);
+        if(!hit(&bvh->box, r, t_min, t_max))
             return false;
 
-        b32 hit_left = hit(objects, *hittable.bvh_node.left, r, t_min, t_max, record);
-        b32 hit_right = hit(objects, *hittable.bvh_node.right, r, t_min, hit_left ? record.t : t_max, record);
+        b32 hit_left = hit(objects, *bvh->left, r, t_min, t_max, record);
+        b32 hit_right = hit(objects, *bvh->right, r, t_min, hit_left ? record.t : t_max, record);
 
         return hit_left || hit_right;
     }
     break;
     case HITTABLE_XY_RECT:
     {
-        f32 x0 = hittable.xy_rect.x0;
-        f32 x1 = hittable.xy_rect.x1;
-        f32 y0 = hittable.xy_rect.y0;
-        f32 y1 = hittable.xy_rect.y1;
-        f32 k = hittable.xy_rect.k;
+        XYRect* xy_rect = AS(XYRect, &hittable);
+        f32 x0 = xy_rect->x0;
+        f32 x1 = xy_rect->x1;
+        f32 y0 = xy_rect->y0;
+        f32 y1 = xy_rect->y1;
+        f32 k = xy_rect->k;
         // Solve for t:
         f32 t = (k - r.origin.z) / r.direction.z;
         if(t < t_min || t > t_max)
@@ -711,11 +784,12 @@ b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f
     break;
     case HITTABLE_XZ_RECT:
     {
-        f32 x0 = hittable.xz_rect.x0;
-        f32 x1 = hittable.xz_rect.x1;
-        f32 z0 = hittable.xz_rect.z0;
-        f32 z1 = hittable.xz_rect.z1;
-        f32 k = hittable.xz_rect.k;
+        XZRect* xz_rect = AS(XZRect, &hittable);
+        f32 x0 = xz_rect->x0;
+        f32 x1 = xz_rect->x1;
+        f32 z0 = xz_rect->z0;
+        f32 z1 = xz_rect->z1;
+        f32 k = xz_rect->k;
         // Solve for t:
         f32 t = (k - r.origin.y) / r.direction.y;
         if(t < t_min || t > t_max)
@@ -744,11 +818,12 @@ b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f
     break;
     case HITTABLE_YZ_RECT:
     {
-        f32 y0 = hittable.yz_rect.y0;
-        f32 y1 = hittable.yz_rect.y1;
-        f32 z0 = hittable.yz_rect.z0;
-        f32 z1 = hittable.yz_rect.z1;
-        f32 k = hittable.yz_rect.k;
+        YZRect* yz_rect = AS(YZRect, &hittable);
+        f32 y0 = yz_rect->y0;
+        f32 y1 = yz_rect->y1;
+        f32 z0 = yz_rect->z0;
+        f32 z1 = yz_rect->z1;
+        f32 k =  yz_rect->k;
         // Solve for t:
         f32 t = (k - r.origin.x) / r.direction.x;
         if(t < t_min || t > t_max)
@@ -777,7 +852,8 @@ b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f
     break;
     case HITTABLE_FLIP_FACE:
     {
-        if(!hit(objects, *hittable.flip_face.hittable, r, t_min, t_max, record))
+        FlipFace* flip_face = AS(FlipFace, &hittable);
+        if(!hit(objects, *flip_face->ptr, r, t_min, t_max, record))
         {
             return false;
         }
@@ -788,29 +864,32 @@ b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f
     break;
     case HITTABLE_BOX:
     {
-        return hit(&hittable.box.hittables, r, t_min, t_max, record);
+        Box* box = AS(Box, &hittable);
+        return hit(box->sides, r, t_min, t_max, record);
     }
     break;
     case HITTABLE_TRANSLATE:
     {
-        Ray moved_r = ray(r.origin - hittable.translate.offset, r.direction, r.time);
-        if(!hit(objects, *hittable.translate.hittable, moved_r, t_min, t_max, record))
+        Translate* translate = AS(Translate, &hittable);
+        Ray moved_r = ray(r.origin - translate->offset, r.direction, r.time);
+        if(!hit(objects, *translate->ptr, moved_r, t_min, t_max, record))
         {
             return false;
         }
 
-        record.p += hittable.translate.offset;
+        record.p += translate->offset;
         set_face_normal(record, moved_r, record.normal);
         return true;
     }
     break;
     case HITTABLE_ROTATE_Y:
     {
+        RotateY* rotate_y = AS(RotateY, &hittable);
         Point3 origin = r.origin;
         Vec3 direction = r.direction;
 
-        f32 cos_theta = hittable.rotate_y.cos_theta;
-        f32 sin_theta = hittable.rotate_y.sin_theta;
+        f32 cos_theta = rotate_y->cos_theta;
+        f32 sin_theta = rotate_y->sin_theta;
 
         origin[0] = cos_theta * r.origin[0] - sin_theta * r.origin[2];
         origin[2] = sin_theta * r.origin[0] + cos_theta * r.origin[2];
@@ -820,7 +899,7 @@ b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f
 
         Ray rotated_r = ray(origin, direction, r.time);
 
-        if(!hit(objects, *hittable.rotate_y.hittable, rotated_r, t_min, t_max, record))
+        if(!hit(objects, *rotate_y->ptr, rotated_r, t_min, t_max, record))
         {
             return false;
         }
@@ -845,7 +924,9 @@ b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f
         const b32 enable_debug = false;
         const b32 debugging = enable_debug && random_float() < 0.00001;
 
-        Hittable* boundary = hittable.constant_medium.boundary;        
+        ConstantMedium* medium = AS(ConstantMedium, &hittable);
+
+        Hittable* boundary = medium->boundary;        
 
         Hit_Record rec1 = {};
         Hit_Record rec2 = {};
@@ -880,7 +961,7 @@ b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f
         
         f32 ray_length = length(r.direction);
         f32 distance_inside_boundary = (rec2.t - rec1.t) * ray_length;
-        f32 hit_distance = hittable.constant_medium.neg_inv_density * (f32)log(random_float());
+        f32 hit_distance = medium->neg_inv_density * (f32)log(random_float());
 
         if(hit_distance > distance_inside_boundary)
         {
@@ -909,16 +990,16 @@ b32 hit(const List<Hittable>* objects, const Hittable& hittable, const Ray& r, f
 }
 
 
-b32 hit(const List<Hittable>* list, const Ray& ray, f32 t_min, f32 t_max, Hit_Record& record)
+b32 hit(const HittableList& list, const Ray& ray, f32 t_min, f32 t_max, Hit_Record& record)
 {
     Hit_Record temp_rec = {};
     b32 hit_anything = false;
     f32 closest_so_far = t_max;
 
-    for(size_t i = 0; i < list->count; i++)
+    for(size_t i = 0; i < list.list.count; i++)
     {
-        Hittable& hittable = list->data[i];
-        if(hit(list, hittable, ray, t_min, closest_so_far, temp_rec))
+        Hittable* hittable = list.list.data[i];
+        if(hit(list, *hittable, ray, t_min, closest_so_far, temp_rec))
         {
             hit_anything = true;
             closest_so_far = temp_rec.t;

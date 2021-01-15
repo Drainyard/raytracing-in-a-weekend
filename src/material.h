@@ -5,9 +5,17 @@ enum Material_Type
 {
     MATERIAL_LAMBERTIAN,
     MATERIAL_METAL,
-    MATERIAL_DIALECTRIC,
+    MATERIAL_DIELECTRIC,
     MATERIAL_DIFFUSE_LIGHT,
     MATERIAL_ISOTROPIC
+};
+
+struct Scatter_Record
+{
+    Ray specular_ray;
+    bool is_specular;
+    Color attenuation;
+    PDF pdf;
 };
 
 struct Material
@@ -27,8 +35,8 @@ struct Material
         } metal;
         struct
         {
-            f32 ref_idx;
-        } dialectric;
+            f32 ir;
+        } dielectric;
         struct
         {
             size_t emit_texture;
@@ -64,11 +72,11 @@ Material metal(Color albedo, f32 fuzz)
     return material;
 }
 
-Material dialectric(f32 ref_idx)
+Material dielectric(f32 ir)
 {
     Material material = {};
-    material.type = MATERIAL_DIALECTRIC;
-    material.dialectric.ref_idx = ref_idx;
+    material.type = MATERIAL_DIELECTRIC;
+    material.dielectric.ir = ir;
     return material;
 }
 

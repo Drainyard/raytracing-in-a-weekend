@@ -204,6 +204,19 @@ inline Vec3 random_cosine_direction()
     return vec3(x, y, z);
 }
 
+inline Vec3 random_to_sphere(f32 radius, f32 distance_squared)
+{
+    f32 r1 = random_float();
+    f32 r2 = random_float();
+    f32 z = 1 + r2 * (sqrt(1 - radius * radius / distance_squared) - 1);
+
+    f32 phi = 2 * pi * r1;
+    f32 x = cos(phi) * sqrt(1 - z * z);
+    f32 y = sin(phi) * sqrt(1 - z * z);
+
+    return vec3(x, y, z);
+}
+
 inline Vec3 random_in_unit_disk()
 {
     while(true)
